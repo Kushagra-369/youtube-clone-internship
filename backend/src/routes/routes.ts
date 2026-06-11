@@ -3,7 +3,7 @@ import {
   createComment,
   getComments,
   likeComment,
-  dislikeComment,
+  dislikeComment, translateComment
 } from "../controllers/comment_controller";
 
 const router = express.Router();
@@ -13,5 +13,5 @@ router.post("/create_comments", createComment);
 router.get("/get_comments", getComments);
 router.patch("/like_comments/:id/like", likeComment);
 router.patch("/dislike_comments/:id/dislike", dislikeComment);
-
+router.post("/translate", translateComment);
 export default router;
