@@ -17,9 +17,21 @@ import {
   incrementViews,
 } from "../controllers/video_controller";
 
+import {
+  createUser,
+  getUsers,
+  getUserById,
+  upgradeToPremium,
+} from "../controllers/user_controller";
+
 const router = express.Router();
 
-// Comments
+router.post("/create-user", createUser);
+router.get("/users", getUsers);
+router.get("/users/:userId",getUserById);
+router.patch("/upgrade-premium/:userId",upgradeToPremium);
+
+
 router.post("/create_comments", createComment);
 router.get("/get_comments", getComments);
 router.patch("/like_comments/:id/like", likeComment);

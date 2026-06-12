@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import CommentsPage from "../comments/CommentsPage";
 import {
-  downloadVideo,
+    downloadVideo,
 } from "../../services/download.service";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
@@ -43,7 +43,7 @@ const PlayerPage = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hasViewed = useRef(false);
     const isLoggedIn = false;
-    
+
     const qualities = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
     const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -154,25 +154,26 @@ const PlayerPage = () => {
         }
     };
 
-  const handleDownload = async () => {
-  try {
-    const userId =
-      "685111111111111111111111";
+    const handleDownload = async () => {
+        try {
+            const userId =
+                "6a2bf406f76bc7b1f5c506ec";
 
-    const response =
-      await downloadVideo(
-        userId,
-        video!._id
-      );
+            const response =
+                await downloadVideo(
+                    userId,
+                    video!._id
+                );
 
-    alert(response.message);
-  } catch (error: any) {
-    alert(
-      error?.response?.data?.message ||
-        "Download failed"
-    );
-  }
-};
+            alert(response.message);
+        } catch (error: any) {
+            alert(
+                error?.response?.data?.message ||
+                "Download failed"
+            );
+        }
+    };
+    
     useEffect(() => {
         const handleFullscreenChange = () => {
             setIsFullscreen(!!document.fullscreenElement);
@@ -411,7 +412,7 @@ const PlayerPage = () => {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>
                                             </button>
-                                            
+
                                             {showDownloadMenu && (
                                                 <>
                                                     <div className="fixed inset-0 z-40" onClick={() => setShowDownloadMenu(false)} />
@@ -541,7 +542,7 @@ const PlayerPage = () => {
                         <div className="lg:w-100">
                             <div className="space-y-3">
                                 <h3 className="text-white font-semibold mb-3">Suggested Videos</h3>
-                                
+
                                 {suggestedLoading ? (
                                     <div className="flex justify-center py-8">
                                         <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
