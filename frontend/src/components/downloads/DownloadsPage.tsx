@@ -26,11 +26,24 @@ const DownloadsPage = () => {
 
   const fetchDownloads = async () => {
     try {
-      const userId = "6a2bf406f76bc7b1f5c506ec";
-      const response = await getDownloads(userId);
+      const user = JSON.parse(
+        localStorage.getItem("user") || "null"
+      );
+
+      if (!user?._id) {
+        setDownloads([]);
+        return;
+      }
+
+      const response =
+        await getDownloads(user._id);
+
       setDownloads(response.data || []);
     } catch (error) {
-      console.error("Downloads Error:", error);
+      console.error(
+        "Downloads Error:",
+        error
+      );
       setDownloads([]);
     } finally {
       setLoading(false);
@@ -52,7 +65,7 @@ const DownloadsPage = () => {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - downloadedDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -84,8 +97,8 @@ const DownloadsPage = () => {
           <div className="flex items-center justify-between px-4 py-2">
             <Link to="/" className="flex items-center gap-1">
               <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z"/>
-                <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f"/>
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
+                <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
               </svg>
               <span className="text-white text-xl font-semibold">YouTube</span>
             </Link>
@@ -107,8 +120,8 @@ const DownloadsPage = () => {
         <div className="flex items-center justify-between px-4 py-2">
           <Link to="/" className="flex items-center gap-1">
             <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z"/>
-              <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f"/>
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
+              <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
             </svg>
             <span className="text-white text-xl font-semibold">YouTube</span>
           </Link>
@@ -138,7 +151,7 @@ const DownloadsPage = () => {
             </button>
             <button className="flex items-center gap-2 px-4 py-1.5 bg-[#3ea6ff] text-black text-sm font-medium rounded-full hover:bg-[#65b8ff] transition">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
               </svg>
               Sign In
             </button>
@@ -165,17 +178,16 @@ const DownloadsPage = () => {
                 <button
                   key={quality}
                   onClick={() => setSelectedQuality(quality)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-                    selectedQuality === quality
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${selectedQuality === quality
                       ? "bg-white text-black"
                       : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
-                  }`}
+                    }`}
                 >
                   {quality === "all" ? "All Qualities" : quality}
                 </button>
               ))}
             </div>
-            
+
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
@@ -192,7 +204,7 @@ const DownloadsPage = () => {
               {searchQuery || selectedQuality !== "all" ? (
                 <>
                   <svg className="w-20 h-20 text-[#272727] mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                   </svg>
                   <p className="text-[#aaaaaa]">No matching downloads found</p>
                   <button
@@ -208,7 +220,7 @@ const DownloadsPage = () => {
               ) : (
                 <>
                   <svg className="w-20 h-20 text-[#272727] mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 3v1h4v1h-4v1h4v1h-4v1h6V3h-6zm-2 4H5V5h5v2zm0 3H5V8h5v2zm0 3H5v-2h5v2zm8-6h-3V5h3v2zm0 3h-3V8h3v2zm0 3h-3v-2h3v2zM3 21h18v-6H3v6zm2-2v-2h4v2H5zm6 0v-2h4v2h-4zm6 0v-2h2v2h-2z"/>
+                    <path d="M12 3v1h4v1h-4v1h4v1h-4v1h6V3h-6zm-2 4H5V5h5v2zm0 3H5V8h5v2zm0 3H5v-2h5v2zm8-6h-3V5h3v2zm0 3h-3V8h3v2zm0 3h-3v-2h3v2zM3 21h18v-6H3v6zm2-2v-2h4v2H5zm6 0v-2h4v2h-4zm6 0v-2h2v2h-2z" />
                   </svg>
                   <p className="text-[#aaaaaa] text-lg">No downloads yet</p>
                   <p className="text-[#aaaaaa] text-sm mt-2">Videos you download will appear here</p>
@@ -255,11 +267,11 @@ const DownloadsPage = () => {
                         {download.videoId?.title || "Untitled"}
                       </h3>
                     </Link>
-                    
+
                     <p className="text-[#aaaaaa] text-xs hover:text-white transition mb-1">
                       {download.videoId?.channelName || download.videoId?.uploadedBy || "Channel"}
                     </p>
-                    
+
                     <div className="flex items-center gap-2 text-xs text-[#aaaaaa] mb-3">
                       <span>👁 {formatViews(download.videoId?.views)} views</span>
                     </div>
@@ -268,11 +280,11 @@ const DownloadsPage = () => {
                     <div className="flex items-center justify-between pt-3 border-t border-[#272727]">
                       <div className="flex items-center gap-1 text-xs text-[#aaaaaa]">
                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                         </svg>
                         <span>{formatDate(download.downloadedAt)}</span>
                       </div>
-                      
+
                       <button
                         onClick={() => handleDeleteDownload(download._id)}
                         className="text-[#aaaaaa] hover:text-red-500 transition p-1 rounded-full hover:bg-[#272727]"
@@ -295,7 +307,7 @@ const DownloadsPage = () => {
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
                   <svg className="w-8 h-8 text-[#3ea6ff]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 10h-2V6h-2v4h-2V6h-2v4H9V6H7v4H5V4h14v6zm0 2H5v6h14v-6z"/>
+                    <path d="M19 10h-2V6h-2v4h-2V6h-2v4H9V6H7v4H5V4h14v6zm0 2H5v6h14v-6z" />
                   </svg>
                   <div>
                     <p className="text-white text-sm font-medium">Storage Used</p>
@@ -303,7 +315,7 @@ const DownloadsPage = () => {
                   </div>
                 </div>
                 <div className="w-48 h-2 bg-[#272727] rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-[#3ea6ff] rounded-full"
                     style={{ width: `${Math.min((downloads.length / 50) * 100, 100)}%` }}
                   />

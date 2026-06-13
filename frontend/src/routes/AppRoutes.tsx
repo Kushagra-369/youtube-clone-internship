@@ -4,7 +4,6 @@ import HomePage from "../components/home/HomePage";
 import CommentsPage from "../components/comments/CommentsPage";
 import PlayerPage from "../components/player/PlayerPage";
 import DownloadsPage from "../components/downloads/DownloadsPage";
-
 const AppRoutes = () => {
   return (
     <Routes>

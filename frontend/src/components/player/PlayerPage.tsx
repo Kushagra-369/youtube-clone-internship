@@ -3,7 +3,7 @@ import CommentsPage from "../comments/CommentsPage";
 import {
     downloadVideo,
 } from "../../services/download.service";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
     getVideoById,
     incrementViews,
@@ -24,7 +24,6 @@ interface ExtendedVideo extends Video {
 
 const PlayerPage = () => {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const [video, setVideo] = useState<ExtendedVideo | null>(null);
     const [suggestedVideos, setSuggestedVideos] = useState<Video[]>([]);
     const [loading, setLoading] = useState(true);
@@ -38,11 +37,26 @@ const PlayerPage = () => {
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const hasViewed = useRef(false);
-    const isLoggedIn = false;
+    const [user, setUser] = useState<any>(
+        null
+    );
+
+    useEffect(() => {
+        const savedUser =
+            localStorage.getItem("user");
+
+        if (savedUser) {
+            setUser(
+                JSON.parse(savedUser)
+            );
+        }
+    }, []);
+
+    const isLoggedIn = !!user;
+
 
     const qualities = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
     const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -96,6 +110,18 @@ const PlayerPage = () => {
         }
     }, [playbackSpeed]);
 
+    // Handle quality change
+    const handleQualityChange = (quality: string) => {
+        setSelectedQuality(quality);
+        if (quality !== "Auto" && videoRef.current) {
+            // Note: Actual quality switching requires multiple video sources
+            // This is a placeholder for the logic
+            console.log(`Quality changed to ${quality}`);
+            // In production, you would need to have different source files
+            // and switch the video source here
+        }
+    };
+
     const formatViews = (count: number = 0): string => {
         if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
         if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -147,17 +173,9 @@ const PlayerPage = () => {
         }
     };
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (searchQuery.trim()) {
-            navigate(`/?search=${encodeURIComponent(searchQuery)}`);
-        }
-    };
-
     const handleDownload = async () => {
         try {
-            const userId =
-                "6a2bf406f76bc7b1f5c506ec";
+            const userId = user._id;
 
             const response =
                 await downloadVideo(
@@ -173,7 +191,7 @@ const PlayerPage = () => {
             );
         }
     };
-    
+
     useEffect(() => {
         const handleFullscreenChange = () => {
             setIsFullscreen(!!document.fullscreenElement);
@@ -205,49 +223,7 @@ const PlayerPage = () => {
 
     return (
         <div className="min-h-screen bg-[#0f0f0f]">
-            {/* Fixed Header */}
-            <header className="fixed top-0 left-0 right-0 bg-[#0f0f0f] border-b border-[#272727] z-50">
-                <div className="flex items-center justify-between px-4 py-2">
-                    <Link to="/" className="flex items-center gap-1">
-                        <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
-                            <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
-                        </svg>
-                        <span className="text-white text-xl font-semibold">YouTube</span>
-                    </Link>
-
-                    <div className="flex-1 max-w-2xl mx-4">
-                        <form onSubmit={handleSearch} className="flex">
-                            <input
-                                type="text"
-                                placeholder="Search"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full px-4 py-2 bg-[#121212] border border-[#303030] rounded-l-full text-white placeholder:text-[#aaaaaa] focus:outline-none focus:border-blue-500"
-                            />
-                            <button type="submit" className="px-6 bg-[#222222] border border-[#303030] border-l-0 rounded-r-full hover:bg-[#272727]">
-                                <svg className="w-5 h-5 text-[#aaaaaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </button>
-                        </form>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button className="px-4 py-1.5 bg-[#222222] text-[#3ea6ff] text-sm font-medium rounded-full hover:bg-[#272727] transition">
-                            Premium
-                        </button>
-                        <button className="flex items-center gap-2 px-4 py-1.5 bg-[#3ea6ff] text-black text-sm font-medium rounded-full hover:bg-[#65b8ff] transition">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                            </svg>
-                            Sign In
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
+            {/* Main Content - Added padding-top for navbar */}
             <main className="pt-14">
                 <div className="max-w-350 mx-auto px-4 py-6">
                     <div className="flex flex-col lg:flex-row gap-6">
@@ -469,7 +445,7 @@ const PlayerPage = () => {
                                                                 {qualities.map((quality) => (
                                                                     <button
                                                                         key={quality}
-                                                                        onClick={() => setSelectedQuality(quality)}
+                                                                        onClick={() => handleQualityChange(quality)}
                                                                         className={`px-2 py-1 text-xs rounded ${selectedQuality === quality
                                                                             ? "bg-blue-600 text-white"
                                                                             : "bg-[#3a3a3a] text-gray-300 hover:bg-[#4a4a4a]"

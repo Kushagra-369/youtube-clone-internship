@@ -5,8 +5,6 @@ import mongoose from "mongoose";
 import router from "./routes/routes";
 
 dotenv.config();
-console.log(process.env.MONGO_URI);
-console.log(process.cwd());
 const app = express();
  
 app.use(express.json());

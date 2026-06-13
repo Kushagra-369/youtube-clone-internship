@@ -21,7 +21,7 @@ import {
   createUser,
   getUsers,
   getUserById,
-  upgradeToPremium,
+  upgradeToPremium, getUserByEmail
 } from "../controllers/user_controller";
 
 const router = express.Router();
@@ -30,7 +30,7 @@ router.post("/create-user", createUser);
 router.get("/users", getUsers);
 router.get("/users/:userId",getUserById);
 router.patch("/upgrade-premium/:userId",upgradeToPremium);
-
+router.get("/user/email/:email",getUserByEmail);
 
 router.post("/create_comments", createComment);
 router.get("/get_comments", getComments);

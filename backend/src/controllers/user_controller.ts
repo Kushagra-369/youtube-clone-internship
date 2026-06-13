@@ -137,3 +137,36 @@ export const upgradeToPremium = async (
     });
   }
 };
+
+export const getUserByEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const email = req.params.email as string;
+
+    const user = await User.findOne({
+      email,
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};

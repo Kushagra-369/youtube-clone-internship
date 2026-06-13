@@ -12,7 +12,11 @@ interface Props {
     currentUserId?: string;
 }
 
-const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Props) => {
+const CommentCard = ({
+    comment,
+    refreshComments,
+    currentUserId
+}: Props) => {
     const [translatedText, setTranslatedText] = useState<string>("");
     const [targetLanguage, setTargetLanguage] = useState<string>("en");
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -23,6 +27,10 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
     const [showReplyForm, setShowReplyForm] = useState<boolean>(false);
 
     const handleLike = async (): Promise<void> => {
+        if (!currentUserId) {
+            alert("Please sign in first");
+            return;
+        }
         try {
             if (isLiked) {
                 setLocalLikes(localLikes - 1);
@@ -43,6 +51,10 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
     };
 
     const handleDislike = async (): Promise<void> => {
+        if (!currentUserId) {
+            alert("Please sign in first");
+            return;
+        }
         try {
             if (isDisliked) {
                 setLocalDislikes(localDislikes - 1);
@@ -79,7 +91,7 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
         const commentDate = new Date(date);
         const now = new Date();
         const diffDays = Math.floor((now.getTime() - commentDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays === 0) return "Today";
         if (diffDays === 1) return "Yesterday";
         if (diffDays < 7) return `${diffDays} days ago`;
@@ -136,9 +148,8 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
                     {/* Like Button */}
                     <button
                         onClick={handleLike}
-                        className={`flex items-center gap-1 transition ${
-                            isLiked ? "text-[#3ea6ff]" : "text-[#aaaaaa] hover:text-white"
-                        }`}
+                        className={`flex items-center gap-1 transition ${isLiked ? "text-[#3ea6ff]" : "text-[#aaaaaa] hover:text-white"
+                            }`}
                     >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
@@ -149,9 +160,8 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
                     {/* Dislike Button */}
                     <button
                         onClick={handleDislike}
-                        className={`flex items-center gap-1 transition ${
-                            isDisliked ? "text-red-500" : "text-[#aaaaaa] hover:text-white"
-                        }`}
+                        className={`flex items-center gap-1 transition ${isDisliked ? "text-red-500" : "text-[#aaaaaa] hover:text-white"
+                            }`}
                     >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
@@ -183,7 +193,7 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
                             <option value="zh">中文</option>
                             <option value="ja">日本語</option>
                         </select>
-                        
+
                         <button
                             onClick={handleTranslate}
                             disabled={isTranslating}
@@ -200,7 +210,7 @@ const CommentCard = ({ comment, refreshComments, currentUserId = "user1" }: Prop
                         <div className="flex gap-3">
                             <div className="w-8 h-8 rounded-full bg-[#272727] flex items-center justify-center shrink-0">
                                 <svg className="w-4 h-4 text-[#aaaaaa]" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                                 </svg>
                             </div>
                             <div className="flex-1">

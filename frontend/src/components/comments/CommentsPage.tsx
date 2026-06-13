@@ -12,7 +12,9 @@ const CommentsPage = ({ videoId }: CommentsPageProps) => {
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [sortBy, setSortBy] = useState<"top" | "newest">("top");
-
+    const currentUser = JSON.parse(
+        localStorage.getItem("user") || "null"
+    );
     const fetchComments = async (): Promise<void> => {
         try {
             setLoading(true);
@@ -54,27 +56,25 @@ const CommentsPage = ({ videoId }: CommentsPageProps) => {
                 <h3 className="text-white text-xl font-bold">
                     Comments • {comments.length}
                 </h3>
-                
+
                 {/* Sort Options */}
                 <div className="flex items-center gap-2">
                     <span className="text-[#aaaaaa] text-sm">Sort by:</span>
                     <button
                         onClick={() => setSortBy("top")}
-                        className={`px-3 py-1 text-sm rounded-full transition ${
-                            sortBy === "top" 
-                                ? "bg-[#3ea6ff] text-black" 
-                                : "text-[#aaaaaa] hover:text-white"
-                        }`}
+                        className={`px-3 py-1 text-sm rounded-full transition ${sortBy === "top"
+                            ? "bg-[#3ea6ff] text-black"
+                            : "text-[#aaaaaa] hover:text-white"
+                            }`}
                     >
                         Top
                     </button>
                     <button
                         onClick={() => setSortBy("newest")}
-                        className={`px-3 py-1 text-sm rounded-full transition ${
-                            sortBy === "newest" 
-                                ? "bg-[#3ea6ff] text-black" 
-                                : "text-[#aaaaaa] hover:text-white"
-                        }`}
+                        className={`px-3 py-1 text-sm rounded-full transition ${sortBy === "newest"
+                            ? "bg-[#3ea6ff] text-black"
+                            : "text-[#aaaaaa] hover:text-white"
+                            }`}
                     >
                         Newest
                     </button>
@@ -89,7 +89,7 @@ const CommentsPage = ({ videoId }: CommentsPageProps) => {
                 {comments.length === 0 ? (
                     <div className="text-center py-12">
                         <svg className="w-16 h-16 text-[#272727] mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2z"/>
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2z" />
                         </svg>
                         <p className="text-[#aaaaaa]">No comments yet. Be the first to comment!</p>
                     </div>
@@ -100,6 +100,7 @@ const CommentsPage = ({ videoId }: CommentsPageProps) => {
                                 key={comment._id}
                                 comment={comment}
                                 refreshComments={fetchComments}
+                                currentUserId={currentUser?._id}
                             />
                         ))}
                     </div>
