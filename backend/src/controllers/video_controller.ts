@@ -171,3 +171,156 @@ export const incrementViews = async (
     });
   }
 };
+
+export const likeVideo = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "userId is required",
+      });
+      return;
+    }
+
+    const video = await Video.findById(id);
+
+    if (!video) {
+      res.status(404).json({
+        success: false,
+        message: "Video not found",
+      });
+      return;
+    }
+
+    // Toggle Like Off
+    if (video.likedBy.includes(userId)) {
+      video.likedBy = video.likedBy.filter(
+        (uid) => uid !== userId
+      );
+
+      video.likes = video.likedBy.length;
+
+      await video.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Like removed",
+        data: video,
+      });
+
+      return;
+    }
+
+    // Remove dislike if exists
+    if (video.dislikedBy.includes(userId)) {
+      video.dislikedBy = video.dislikedBy.filter(
+        (uid) => uid !== userId
+      );
+    }
+
+    // Add like
+    video.likedBy.push(userId);
+
+    video.likes = video.likedBy.length;
+    video.dislikes = video.dislikedBy.length;
+
+    await video.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Video liked",
+      data: video,
+    });
+  } catch (error) {
+    console.error("Like Video Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+export const dislikeVideo = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "userId is required",
+      });
+      return;
+    }
+
+    const video = await Video.findById(id);
+
+    if (!video) {
+      res.status(404).json({
+        success: false,
+        message: "Video not found",
+      });
+      return;
+    }
+
+    // Toggle Dislike Off
+    if (video.dislikedBy.includes(userId)) {
+      video.dislikedBy = video.dislikedBy.filter(
+        (uid) => uid !== userId
+      );
+
+      video.dislikes = video.dislikedBy.length;
+
+      await video.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Dislike removed",
+        data: video,
+      });
+
+      return;
+    }
+
+    // Remove like if exists
+    if (video.likedBy.includes(userId)) {
+      video.likedBy = video.likedBy.filter(
+        (uid) => uid !== userId
+      );
+    }
+
+    // Add dislike
+    video.dislikedBy.push(userId);
+
+    video.likes = video.likedBy.length;
+    video.dislikes = video.dislikedBy.length;
+
+    await video.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Video disliked",
+      data: video,
+    });
+  } catch (error) {
+    console.error(
+      "Dislike Video Error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};

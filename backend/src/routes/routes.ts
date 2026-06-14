@@ -14,7 +14,7 @@ import {
   createVideo,
   getVideos,
   getVideoById,
-  incrementViews,
+  incrementViews, likeVideo,dislikeVideo
 } from "../controllers/video_controller";
 
 import {
@@ -46,5 +46,6 @@ router.post("/create_video",createVideo);
 router.get("/get_videos",getVideos);
 router.get("/get_video/:id",getVideoById);
 router.patch("/video_views/:id",incrementViews);
-
+router.post("/video/:id/like",likeVideo);
+router.post("/video/:id/dislike",dislikeVideo);
 export default router;

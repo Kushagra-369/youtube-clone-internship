@@ -15,6 +15,11 @@ export interface IVideo extends Document {
 
   createdAt: Date;
   updatedAt: Date;
+  likes: number;
+  dislikes: number;
+
+  likedBy: string[];
+  dislikedBy: string[];
 }
 
 const videoSchema = new Schema<IVideo>(
@@ -49,6 +54,25 @@ const videoSchema = new Schema<IVideo>(
     views: {
       type: Number,
       default: 0,
+    },
+    likes: {
+      type: Number,
+      default: 0,
+    },
+
+    dislikes: {
+      type: Number,
+      default: 0,
+    },
+
+    likedBy: {
+      type: [String],
+      default: [],
+    },
+
+    dislikedBy: {
+      type: [String],
+      default: [],
     },
 
     uploadedBy: {

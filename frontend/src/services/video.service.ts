@@ -29,3 +29,27 @@ export const incrementViews = async (
 
   return response.data;
 };
+
+export const likeVideo = async (
+  videoId: string,
+  userId: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/video/${videoId}/like`,
+    { userId }
+  );
+
+  return response.data;
+};
+
+export const dislikeVideo = async (
+  videoId: string,
+  userId: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/video/${videoId}/dislike`,
+    { userId }
+  );
+
+  return response.data;
+};

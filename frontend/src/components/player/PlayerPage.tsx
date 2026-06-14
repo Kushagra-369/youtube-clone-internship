@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import CommentsPage from "../comments/CommentsPage";
+import { likeVideo, dislikeVideo, } from "../../services/video.service";
 import {
     downloadVideo,
 } from "../../services/download.service";
@@ -30,8 +31,8 @@ const PlayerPage = () => {
     const [suggestedLoading, setSuggestedLoading] = useState(true);
     const [videoError, setVideoError] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const [isLiked, setIsLiked] = useState(false);
-    const [isDisliked, setIsDisliked] = useState(false);
+    const [isLiked, ] = useState(false);
+    const [isDisliked, ] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [selectedQuality, setSelectedQuality] = useState("Auto");
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -143,21 +144,34 @@ const PlayerPage = () => {
         return `${Math.floor(diffDays / 365)} years ago`;
     };
 
-    const handleLike = () => {
-        if (isLiked) {
-            setIsLiked(false);
-        } else {
-            setIsLiked(true);
-            setIsDisliked(false);
+    const handleLike = async () => {
+        try {
+            if (!user || !video) return;
+
+            const response = await likeVideo(
+                video._id,
+                user.email
+            );
+
+            setVideo(response.data);
+        } catch (error) {
+            console.error(error);
         }
     };
 
-    const handleDislike = () => {
-        if (isDisliked) {
-            setIsDisliked(false);
-        } else {
-            setIsDisliked(true);
-            setIsLiked(false);
+    const handleDislike = async () => {
+        try {
+            if (!user || !video) return;
+
+            const response =
+                await dislikeVideo(
+                    video._id,
+                    user.email
+                );
+
+            setVideo(response.data);
+        } catch (error) {
+            console.error(error);
         }
     };
 
@@ -351,7 +365,7 @@ const PlayerPage = () => {
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                                             </svg>
-                                            <span>{formatViews((video.likes || 0) + (isLiked ? 1 : 0))}</span>
+                                            <span>{video.likes || 0}</span>
                                         </button>
 
                                         <button
@@ -368,7 +382,7 @@ const PlayerPage = () => {
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
                                             </svg>
-                                            <span>{formatViews((video.dislikes || 0) + (isDisliked ? 1 : 0))}</span>
+                                            <span>{video.dislikes || 0}</span>
                                         </button>
 
                                         <button className="flex items-center gap-2 bg-[#272727] hover:bg-[#3a3a3a] px-4 py-2 rounded-full transition">
