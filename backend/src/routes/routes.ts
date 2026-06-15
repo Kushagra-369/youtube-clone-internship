@@ -1,28 +1,10 @@
 import express from "express";
-import {
-  createComment,
-  getComments,
-  likeComment,
-  dislikeComment, translateComment
-} from "../controllers/comment_controller";
 
-import {
-  downloadVideo, getDownloads
-} from "../controllers/download_controller";
-
-import {
-  createVideo,
-  getVideos,
-  getVideoById,
-  incrementViews, likeVideo,dislikeVideo
-} from "../controllers/video_controller";
-
-import {
-  createUser,
-  getUsers,
-  getUserById,
-  upgradeToPremium, getUserByEmail
-} from "../controllers/user_controller";
+import {createComment,getComments,likeComment,dislikeComment, translateComment} from "../controllers/comment_controller";
+import {downloadVideo, getDownloads} from "../controllers/download_controller";
+import {createVideo,getVideos,getVideoById,incrementViews, likeVideo,dislikeVideo} from "../controllers/video_controller";
+import {createUser,getUsers,getUserById,upgradeToPremium, getUserByEmail} from "../controllers/user_controller";
+import {createChannel,getChannelByOwner,subscribeChannel,unsubscribeChannel} from "../controllers/channel_controller"
 
 const router = express.Router();
 
@@ -48,4 +30,11 @@ router.get("/get_video/:id",getVideoById);
 router.patch("/video_views/:id",incrementViews);
 router.post("/video/:id/like",likeVideo);
 router.post("/video/:id/dislike",dislikeVideo);
+
+
+router.post("/channel/create",createChannel);
+router.get("/channel/:ownerId",getChannelByOwner);
+router.post("/channel/:channelId/subscribe",subscribeChannel);
+router.post("/channel/:channelId/unsubscribe",unsubscribeChannel);
+
 export default router;

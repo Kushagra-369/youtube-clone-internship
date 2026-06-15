@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-
+import ChannelPage from "../components/channel/channel_page";
 import HomePage from "../components/home/HomePage";
 import CommentsPage from "../components/comments/CommentsPage";
 import PlayerPage from "../components/player/PlayerPage";
@@ -27,6 +27,10 @@ const AppRoutes = () => {
       <Route
         path="/downloads"
         element={<DownloadsPage />}
+      />
+      <Route
+        path="/channel"
+        element={<ChannelPage />}
       />
     </Routes>
   );
