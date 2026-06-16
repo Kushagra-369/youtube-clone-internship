@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getDownloads } from "../../services/download.service";
-
+import { getUserByEmail } from "../../services/user.service";
 interface DownloadItem {
   _id: string;
   videoId: {
@@ -26,24 +26,27 @@ const DownloadsPage = () => {
 
   const fetchDownloads = async () => {
     try {
-      const user = JSON.parse(
+      const localUser = JSON.parse(
         localStorage.getItem("user") || "null"
       );
 
-      if (!user?._id) {
+      if (!localUser?.email) {
         setDownloads([]);
         return;
       }
 
+      const userResponse =
+        await getUserByEmail(localUser.email);
+
+      const userId =
+        userResponse.data._id;
+
       const response =
-        await getDownloads(user._id);
+        await getDownloads(userId);
 
       setDownloads(response.data || []);
     } catch (error) {
-      console.error(
-        "Downloads Error:",
-        error
-      );
+      console.error(error);
       setDownloads([]);
     } finally {
       setLoading(false);
@@ -179,8 +182,8 @@ const DownloadsPage = () => {
                   key={quality}
                   onClick={() => setSelectedQuality(quality)}
                   className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${selectedQuality === quality
-                      ? "bg-white text-black"
-                      : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
+                    ? "bg-white text-black"
+                    : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
                     }`}
                 >
                   {quality === "all" ? "All Qualities" : quality}

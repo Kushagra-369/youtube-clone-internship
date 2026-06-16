@@ -4,6 +4,7 @@ import HomePage from "../components/home/HomePage";
 import CommentsPage from "../components/comments/CommentsPage";
 import PlayerPage from "../components/player/PlayerPage";
 import DownloadsPage from "../components/downloads/DownloadsPage";
+import SubscriptionPage from "../components/subscription/SubscriptionPage";
 const AppRoutes = () => {
   return (
     <Routes>
@@ -32,6 +33,7 @@ const AppRoutes = () => {
         path="/channel"
         element={<ChannelPage />}
       />
+      <Route path="/premium" element = {<SubscriptionPage/>}/>
     </Routes>
   );
 };

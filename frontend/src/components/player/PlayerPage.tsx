@@ -11,7 +11,7 @@ import {
     getVideos,
 } from "../../services/video.service";
 import type { Video } from "../../types/video.types";
-
+import { getUserByEmail } from "../../services/user.service";
 // Extend Video type to include optional fields
 interface ExtendedVideo extends Video {
     uploadDate?: string;
@@ -31,8 +31,8 @@ const PlayerPage = () => {
     const [suggestedLoading, setSuggestedLoading] = useState(true);
     const [videoError, setVideoError] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const [isLiked, ] = useState(false);
-    const [isDisliked, ] = useState(false);
+    const [isLiked,] = useState(false);
+    const [isDisliked,] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [selectedQuality, setSelectedQuality] = useState("Auto");
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -189,7 +189,16 @@ const PlayerPage = () => {
 
     const handleDownload = async () => {
         try {
-            const userId = user._id;
+
+            console.log("USER =", user);
+            console.log("USER_ID =", user?._id);
+            console.log("VIDEO_ID =", video?._id);
+
+            const userResponse =
+                await getUserByEmail(user.email);
+
+            const userId =
+                userResponse.data._id;
 
             const response =
                 await downloadVideo(

@@ -27,3 +27,13 @@ export const getUserByEmail = async (
 
   return response.data;
 };
+
+export const upgradeToPremium = async (
+  userId: string
+) => {
+  const response = await axios.patch(
+    `${API_URL}/upgrade-premium/${userId}`
+  );
+
+  return response.data;
+};

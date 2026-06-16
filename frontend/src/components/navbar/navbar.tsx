@@ -119,9 +119,11 @@ const Navbar = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button className="px-4 py-1.5 bg-[#222222] text-[#3ea6ff] text-sm font-medium rounded-full hover:bg-[#272727] transition">
-                        Premium
-                    </button>
+                    <Link to="/premium">
+                        <button className="px-4 py-1.5 bg-[#222222] text-[#3ea6ff] text-sm font-medium rounded-full hover:bg-[#272727] transition">
+                            Premium
+                        </button>
+                    </Link>
                     <Link
                         to="/downloads"
                         className="px-4 py-1.5 bg-[#222222] text-white text-sm font-medium rounded-full hover:bg-[#272727] transition"
