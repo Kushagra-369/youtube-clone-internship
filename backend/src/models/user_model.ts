@@ -5,6 +5,11 @@ export interface IUser extends Document {
   email: string;
 
   plan: "free" | "premium";
+  watchPlan:
+  | "free"
+  | "bronze"
+  | "silver"
+  | "gold";
 
   downloadCount: number;
   lastDownloadDate: Date | null;
@@ -32,6 +37,12 @@ const userSchema = new Schema<IUser>(
     plan: {
       type: String,
       enum: ["free", "premium"],
+      default: "free",
+    },
+
+    watchPlan: {
+      type: String,
+      enum: ["free", "bronze", "silver", "gold"],
       default: "free",
     },
 

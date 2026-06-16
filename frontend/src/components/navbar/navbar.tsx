@@ -119,6 +119,12 @@ const Navbar = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Link to="/watch-plans">
+                        <button className="px-4 py-1.5 bg-[#222222] text-yellow-400 text-sm font-medium rounded-full hover:bg-[#272727] transition">
+                            Watch Plans
+                        </button>
+                    </Link>
+
                     <Link to="/premium">
                         <button className="px-4 py-1.5 bg-[#222222] text-[#3ea6ff] text-sm font-medium rounded-full hover:bg-[#272727] transition">
                             Premium

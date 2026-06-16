@@ -37,3 +37,19 @@ export const upgradeToPremium = async (
 
   return response.data;
 };
+
+// frontend/src/services/user.service.ts
+
+export const upgradeWatchPlan = async (
+  userId: string,
+  watchPlan: string
+) => {
+  const response = await axios.patch(
+    `${API_URL}/upgrade-watchplan/${userId}`,
+    {
+      watchPlan,
+    }
+  );
+
+  return response.data;
+};

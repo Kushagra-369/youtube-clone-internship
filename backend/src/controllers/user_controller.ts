@@ -170,3 +170,40 @@ export const getUserByEmail = async (
     });
   }
 };
+
+export const upgradeWatchPlan = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { watchPlan } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    user.watchPlan = watchPlan;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Watch plan updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};

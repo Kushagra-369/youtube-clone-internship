@@ -41,6 +41,7 @@ const PlayerPage = () => {
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const hasViewed = useRef(false);
+    const [watchLimitReached, setWatchLimitReached] = useState(false);
     const [user, setUser] = useState<any>(
         null
     );
@@ -57,6 +58,15 @@ const PlayerPage = () => {
     }, []);
 
     const isLoggedIn = !!user;
+
+    const watchPlan = user?.watchPlan || "free";
+
+    const watchLimits: Record<string, number> = {
+        free: 300,      // 5 min
+        bronze: 420,    // 7 min
+        silver: 600,    // 10 min
+        gold: Infinity, // unlimited
+    };
 
 
     const qualities = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
@@ -104,6 +114,29 @@ const PlayerPage = () => {
         fetchVideo();
         fetchSuggestedVideos();
     }, [id]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const limits: Record<string, number> = {
+            free: 10000,      // 5 min
+            bronze: 420000,    // 7 min
+            silver: 600000,    // 10 min
+            gold: Infinity,
+        };
+
+        const limit =
+            limits[user.watchPlan || "free"];
+
+        if (limit === Infinity) return;
+
+        const timer = setTimeout(() => {
+            setWatchLimitReached(true);
+        }, limit);
+
+        return () => clearTimeout(timer);
+
+    }, [user]);
 
     useEffect(() => {
         if (videoRef.current) {
@@ -586,6 +619,30 @@ const PlayerPage = () => {
                     </div>
                 </div>
             </main>
+            {watchLimitReached && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                    <div className="bg-[#272727] p-6 rounded-xl w-100 text-center">
+                        <h2 className="text-2xl font-bold text-white">
+                            Watch Limit Reached
+                        </h2>
+
+                        <p className="text-gray-400 mt-3">
+                            Your current watch plan limit has been reached.
+                            Upgrade your plan to continue watching videos.
+                        </p>
+
+                        <div className="mt-6 flex justify-center gap-3">
+
+
+                            <Link to="/watch-plans">
+                                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+                                    Upgrade Plan
+                                </button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

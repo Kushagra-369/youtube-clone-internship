@@ -5,6 +5,7 @@ import CommentsPage from "../components/comments/CommentsPage";
 import PlayerPage from "../components/player/PlayerPage";
 import DownloadsPage from "../components/downloads/DownloadsPage";
 import SubscriptionPage from "../components/subscription/SubscriptionPage";
+import Watchplan from "../components/watchplan/watchplan";
 const AppRoutes = () => {
   return (
     <Routes>
@@ -33,7 +34,8 @@ const AppRoutes = () => {
         path="/channel"
         element={<ChannelPage />}
       />
-      <Route path="/premium" element = {<SubscriptionPage/>}/>
+      <Route path="/premium" element={<SubscriptionPage />} />
+      <Route path="/watch-plans" element= {<Watchplan/>}/>
     </Routes>
   );
 };
