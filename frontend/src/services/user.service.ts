@@ -5,13 +5,15 @@ const API_URL =
 
 export const createUser = async (
   name: string,
-  email: string
+  email: string,
+  state: string
+
 ) => {
   const response = await axios.post(
     `${API_URL}/create-user`,
     {
       name,
-      email,
+      email,state
     }
   );
 

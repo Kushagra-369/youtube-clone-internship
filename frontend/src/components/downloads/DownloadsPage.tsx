@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getDownloads } from "../../services/download.service";
 import { getUserByEmail } from "../../services/user.service";
+import { getThemeByLocationAndTime } from "../utils/theme";
+
 interface DownloadItem {
   _id: string;
   videoId: {
@@ -23,6 +25,47 @@ const DownloadsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuality, setSelectedQuality] = useState<string>("all");
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  // Get theme
+  const theme = getThemeByLocationAndTime(user?.state || "");
+  const isLight = theme === "light";
+
+  // Theme-based classes
+  const bgColor = isLight ? "bg-white" : "bg-[#0f0f0f]";
+  const bgColorCard = isLight ? "bg-white" : "bg-[#0f0f0f]";
+  const bgColorHover = isLight ? "hover:bg-gray-50" : "hover:bg-[#1a1a1a]";
+  const textColor = isLight ? "text-black" : "text-white";
+  const mutedText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
+  const borderColor = isLight ? "border-gray-200" : "border-[#272727]";
+  const borderHover = isLight ? "hover:border-gray-400" : "hover:border-[#3a3a3a]";
+  const inputBg = isLight ? "bg-white" : "bg-[#121212]";
+  const inputBorder = isLight ? "border-gray-300" : "border-[#303030]";
+  const inputFocus = isLight ? "focus:border-black" : "focus:border-blue-500";
+  const inputText = isLight ? "text-black" : "text-white";
+  const inputPlaceholder = isLight ? "placeholder:text-gray-400" : "placeholder:text-[#aaaaaa]";
+  const buttonSearchBg = isLight ? "bg-gray-100" : "bg-[#222222]";
+  const buttonSearchHover = isLight ? "hover:bg-gray-200" : "hover:bg-[#272727]";
+  const chipBg = isLight ? "bg-gray-200" : "bg-[#272727]";
+  const chipBgActive = isLight ? "bg-black" : "bg-white";
+  const chipText = isLight ? "text-gray-800" : "text-white";
+  const chipTextActive = isLight ? "text-white" : "text-black";
+  const chipHover = isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]";
+  const spinnerBorder = isLight ? "border-gray-300" : "border-white";
+  const spinnerAccent = isLight ? "border-t-gray-600" : "border-t-transparent";
+  const emptyIconColor = isLight ? "text-gray-300" : "text-[#272727]";
+  const emptyText = isLight ? "text-gray-500" : "text-[#aaaaaa]";
+  const storageBg = isLight ? "bg-gray-100" : "bg-[#1a1a1a]";
+  const storageBorder = isLight ? "border-gray-200" : "border-[#272727]";
+  const progressFill = isLight ? "bg-black" : "bg-[#3ea6ff]";
+  const downloadBadge = isLight ? "bg-gray-800/80" : "bg-black/80";
 
   const fetchDownloads = async () => {
     try {
@@ -94,97 +137,58 @@ const DownloadsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f0f0f]">
-        {/* Header */}
-        <header className="fixed top-0 left-0 right-0 bg-[#0f0f0f] border-b border-[#272727] z-50">
-          <div className="flex items-center justify-between px-4 py-2">
-            <Link to="/" className="flex items-center gap-1">
-              <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
-                <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
-              </svg>
-              <span className="text-white text-xl font-semibold">YouTube</span>
-            </Link>
-          </div>
-        </header>
-        <main className="pt-14">
-          <div className="flex justify-center items-center h-[calc(100vh-56px)]">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
-          </div>
-        </main>
+      <div className={`min-h-screen ${bgColor} ${textColor}`}>
+        <div className="flex justify-center items-center h-screen">
+          <div className={`animate-spin rounded-full h-12 w-12 border-4 ${spinnerBorder} ${spinnerAccent}`}></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 bg-[#0f0f0f] border-b border-[#272727] z-50">
-        <div className="flex items-center justify-between px-4 py-2">
-          <Link to="/" className="flex items-center gap-1">
-            <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
-              <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
-            </svg>
-            <span className="text-white text-xl font-semibold">YouTube</span>
-          </Link>
+    <div className={`min-h-screen ${bgColor} ${textColor}`}>
+      {/* Main Content */}
+      <main className="pt-14">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* Header Stats */}
+          <div className="mb-8">
+            <h1 className={`text-2xl font-bold ${textColor} mb-2`}>Downloads</h1>
+            <div className={`flex items-center gap-4 text-sm ${mutedText}`}>
+              <span>📁 {downloads.length} videos</span>
+              <span>💾 {totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} GB` : `${totalSize} MB`} used</span>
+            </div>
+          </div>
 
           {/* Search Bar */}
-          <div className="flex-1 max-w-2xl mx-4">
-            <div className="flex">
+          <div className="mb-6">
+            <div className="flex max-w-2xl">
               <input
                 type="text"
                 placeholder="Search in downloads..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 bg-[#121212] border border-[#303030] rounded-l-full text-white placeholder:text-[#aaaaaa] focus:outline-none focus:border-blue-500"
+                className={`w-full px-4 py-2 ${inputBg} border ${inputBorder} rounded-l-full ${inputText} ${inputPlaceholder} focus:outline-none ${inputFocus}`}
               />
-              <button className="px-6 bg-[#222222] border border-[#303030] border-l-0 rounded-r-full hover:bg-[#272727]">
-                <svg className="w-5 h-5 text-[#aaaaaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button className={`px-6 ${buttonSearchBg} border ${inputBorder} border-l-0 rounded-r-full ${buttonSearchHover} transition`}>
+                <svg className={`w-5 h-5 ${mutedText}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
             </div>
           </div>
 
-          {/* Right Icons */}
-          <div className="flex items-center gap-2">
-            <button className="px-4 py-1.5 bg-[#222222] text-[#3ea6ff] text-sm font-medium rounded-full hover:bg-[#272727] transition">
-              Premium
-            </button>
-            <button className="flex items-center gap-2 px-4 py-1.5 bg-[#3ea6ff] text-black text-sm font-medium rounded-full hover:bg-[#65b8ff] transition">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-              </svg>
-              Sign In
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="pt-14">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          {/* Header Stats */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">Downloads</h1>
-            <div className="flex items-center gap-4 text-sm text-[#aaaaaa]">
-              <span>📁 {downloads.length} videos</span>
-              <span>💾 {totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} GB` : `${totalSize} MB`} used</span>
-            </div>
-          </div>
-
           {/* Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[#272727]">
+          <div className={`flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b ${borderColor}`}>
             <div className="flex gap-2 flex-wrap">
               {qualities.map((quality) => (
                 <button
                   key={quality}
                   onClick={() => setSelectedQuality(quality)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${selectedQuality === quality
-                    ? "bg-white text-black"
-                    : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
-                    }`}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                    selectedQuality === quality
+                      ? `${chipBgActive} ${chipTextActive}`
+                      : `${chipBg} ${chipText} ${chipHover}`
+                  }`}
                 >
                   {quality === "all" ? "All Qualities" : quality}
                 </button>
@@ -206,10 +210,10 @@ const DownloadsPage = () => {
             <div className="text-center py-20">
               {searchQuery || selectedQuality !== "all" ? (
                 <>
-                  <svg className="w-20 h-20 text-[#272727] mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-20 h-20 ${emptyIconColor} mx-auto mb-4`} fill="currentColor" viewBox="0 0 24 24">
                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                   </svg>
-                  <p className="text-[#aaaaaa]">No matching downloads found</p>
+                  <p className={emptyText}>No matching downloads found</p>
                   <button
                     onClick={() => {
                       setSearchQuery("");
@@ -222,12 +226,12 @@ const DownloadsPage = () => {
                 </>
               ) : (
                 <>
-                  <svg className="w-20 h-20 text-[#272727] mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-20 h-20 ${emptyIconColor} mx-auto mb-4`} fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 3v1h4v1h-4v1h4v1h-4v1h6V3h-6zm-2 4H5V5h5v2zm0 3H5V8h5v2zm0 3H5v-2h5v2zm8-6h-3V5h3v2zm0 3h-3V8h3v2zm0 3h-3v-2h3v2zM3 21h18v-6H3v6zm2-2v-2h4v2H5zm6 0v-2h4v2h-4zm6 0v-2h2v2h-2z" />
                   </svg>
-                  <p className="text-[#aaaaaa] text-lg">No downloads yet</p>
-                  <p className="text-[#aaaaaa] text-sm mt-2">Videos you download will appear here</p>
-                  <Link to="/" className="inline-block mt-6 px-6 py-2 bg-[#3ea6ff] text-black rounded-full font-medium hover:bg-[#65b8ff] transition">
+                  <p className={`${emptyText} text-lg`}>No downloads yet</p>
+                  <p className={`${emptyText} text-sm mt-2`}>Videos you download will appear here</p>
+                  <Link to="/" className={`inline-block mt-6 px-6 py-2 bg-[#3ea6ff] text-black rounded-full font-medium hover:bg-[#65b8ff] transition`}>
                     Browse Videos
                   </Link>
                 </>
@@ -238,7 +242,7 @@ const DownloadsPage = () => {
               {filteredDownloads.map((download) => (
                 <div
                   key={download._id}
-                  className="group bg-[#0f0f0f] rounded-xl overflow-hidden hover:bg-[#1a1a1a] transition border border-[#272727] hover:border-[#3a3a3a]"
+                  className={`${bgColorCard} rounded-xl overflow-hidden ${bgColorHover} transition border ${borderColor} ${borderHover}`}
                 >
                   {/* Thumbnail */}
                   <Link to={`/video/${download.videoId?._id}`} className="relative block">
@@ -251,13 +255,13 @@ const DownloadsPage = () => {
                       }}
                     />
                     {download.quality && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                      <span className={`absolute bottom-2 right-2 ${downloadBadge} text-white text-xs px-1.5 py-0.5 rounded`}>
                         {download.quality}
                       </span>
                     )}
                     {/* Duration Badge */}
                     {download.videoId?.duration && (
-                      <span className="absolute bottom-2 left-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                      <span className={`absolute bottom-2 left-2 ${downloadBadge} text-white text-xs px-1.5 py-0.5 rounded`}>
                         {download.videoId.duration}
                       </span>
                     )}
@@ -266,22 +270,22 @@ const DownloadsPage = () => {
                   {/* Video Info */}
                   <div className="p-4">
                     <Link to={`/video/${download.videoId?._id}`}>
-                      <h3 className="text-white font-semibold text-sm line-clamp-2 mb-2 hover:text-[#3ea6ff] transition">
+                      <h3 className={`${textColor} font-semibold text-sm line-clamp-2 mb-2 hover:text-[#3ea6ff] transition`}>
                         {download.videoId?.title || "Untitled"}
                       </h3>
                     </Link>
 
-                    <p className="text-[#aaaaaa] text-xs hover:text-white transition mb-1">
+                    <p className={`${mutedText} text-xs hover:${isLight ? 'text-black' : 'text-white'} transition mb-1`}>
                       {download.videoId?.channelName || download.videoId?.uploadedBy || "Channel"}
                     </p>
 
-                    <div className="flex items-center gap-2 text-xs text-[#aaaaaa] mb-3">
+                    <div className={`flex items-center gap-2 text-xs ${mutedText} mb-3`}>
                       <span>👁 {formatViews(download.videoId?.views)} views</span>
                     </div>
 
                     {/* Download Info */}
-                    <div className="flex items-center justify-between pt-3 border-t border-[#272727]">
-                      <div className="flex items-center gap-1 text-xs text-[#aaaaaa]">
+                    <div className={`flex items-center justify-between pt-3 border-t ${borderColor}`}>
+                      <div className={`flex items-center gap-1 text-xs ${mutedText}`}>
                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                         </svg>
@@ -290,7 +294,7 @@ const DownloadsPage = () => {
 
                       <button
                         onClick={() => handleDeleteDownload(download._id)}
-                        className="text-[#aaaaaa] hover:text-red-500 transition p-1 rounded-full hover:bg-[#272727]"
+                        className={`${mutedText} hover:text-red-500 transition p-1 rounded-full ${isLight ? 'hover:bg-gray-100' : 'hover:bg-[#272727]'}`}
                         title="Remove from downloads"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -306,24 +310,24 @@ const DownloadsPage = () => {
 
           {/* Storage Info Banner */}
           {downloads.length > 0 && (
-            <div className="mt-8 p-4 bg-[#1a1a1a] rounded-xl border border-[#272727]">
+            <div className={`mt-8 p-4 ${storageBg} rounded-xl border ${storageBorder}`}>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
                   <svg className="w-8 h-8 text-[#3ea6ff]" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19 10h-2V6h-2v4h-2V6h-2v4H9V6H7v4H5V4h14v6zm0 2H5v6h14v-6z" />
                   </svg>
                   <div>
-                    <p className="text-white text-sm font-medium">Storage Used</p>
-                    <p className="text-[#aaaaaa] text-xs">{totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} GB` : `${totalSize} MB`} for {downloads.length} videos</p>
+                    <p className={`${textColor} text-sm font-medium`}>Storage Used</p>
+                    <p className={`${mutedText} text-xs`}>{totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} GB` : `${totalSize} MB`} for {downloads.length} videos</p>
                   </div>
                 </div>
-                <div className="w-48 h-2 bg-[#272727] rounded-full overflow-hidden">
+                <div className="w-48 h-2 ${progressBg} rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#3ea6ff] rounded-full"
+                    className={`h-full ${progressFill} rounded-full`}
                     style={{ width: `${Math.min((downloads.length / 50) * 100, 100)}%` }}
                   />
                 </div>
-                <p className="text-[#aaaaaa] text-xs">
+                <p className={`${mutedText} text-xs`}>
                   {downloads.length}/50 videos
                 </p>
               </div>

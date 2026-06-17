@@ -13,6 +13,8 @@ export interface IUser extends Document {
 
   downloadCount: number;
   lastDownloadDate: Date | null;
+  phone : string;
+  state : string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -44,6 +46,16 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ["free", "bronze", "silver", "gold"],
       default: "free",
+    },
+
+    phone: {
+      type: String,
+      default: "",
+    },
+
+    state: {
+      type: String,
+      default: "",
     },
 
     downloadCount: {

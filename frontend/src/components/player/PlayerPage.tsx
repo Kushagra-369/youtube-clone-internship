@@ -7,11 +7,12 @@ import {
 import { useParams, Link } from "react-router-dom";
 import {
     getVideoById,
-    incrementViews,
     getVideos,
 } from "../../services/video.service";
 import type { Video } from "../../types/video.types";
 import { getUserByEmail } from "../../services/user.service";
+import { getThemeByLocationAndTime } from "../utils/theme";
+
 // Extend Video type to include optional fields
 interface ExtendedVideo extends Video {
     uploadDate?: string;
@@ -39,57 +40,213 @@ const PlayerPage = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [watchTime, setWatchTime] = useState(0);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const hasViewed = useRef(false);
     const [watchLimitReached, setWatchLimitReached] = useState(false);
     const [user, setUser] = useState<any>(
-        null
-    );
+        JSON.parse(
+            localStorage.getItem("user") || "null"
+        )
+    ); const watchTimeInterval =
+        useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
-        const savedUser =
-            localStorage.getItem("user");
+        const savedUser = localStorage.getItem("user");
 
         if (savedUser) {
-            setUser(
-                JSON.parse(savedUser)
-            );
+            const parsedUser = JSON.parse(savedUser);
+
+            console.log("USER =", parsedUser);
+            console.log("WATCH PLAN =", parsedUser.watchPlan);
+
+            setUser(parsedUser);
         }
     }, []);
 
     const isLoggedIn = !!user;
 
-    const watchPlan = user?.watchPlan || "free";
-
-    const watchLimits: Record<string, number> = {
-        free: 300,      // 5 min
-        bronze: 420,    // 7 min
-        silver: 600,    // 10 min
-        gold: Infinity, // unlimited
-    };
-
-
     const qualities = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
     const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+    // Get theme
+    const theme = getThemeByLocationAndTime(user?.state || "");
+    const isLight = theme === "light";
+
+    // Theme-based classes
+    const bgColor = isLight ? "bg-white" : "bg-[#0f0f0f]";
+    const textColor = isLight ? "text-black" : "text-white";
+    const borderColor = isLight ? "border-gray-200" : "border-[#272727]";
+    const cardBg = isLight ? "bg-gray-100" : "bg-[#272727]";
+    const cardBgHover = isLight ? "hover:bg-gray-200" : "hover:bg-[#3a3a3a]";
+    const mutedText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
+    const buttonBg = isLight ? "bg-gray-200" : "bg-[#272727]";
+    const buttonBgHover = isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]";
+    const subscribeBg = isSubscribed
+        ? (isLight ? "bg-gray-200" : "bg-[#272727]")
+        : (isLight ? "bg-black" : "bg-white");
+    const subscribeText = isSubscribed
+        ? (isLight ? "text-black" : "text-white")
+        : (isLight ? "text-white" : "text-black");
+    const subscribeHover = isSubscribed
+        ? (isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]")
+        : (isLight ? "hover:bg-gray-800" : "hover:bg-gray-200");
+    const spinnerBorder = isLight ? "border-gray-300" : "border-white";
+    const spinnerAccent = isLight ? "border-t-gray-600" : "border-t-transparent";
+    const overlayBg = isLight ? "bg-black/70" : "bg-black/80";
+    const modalBg = isLight ? "bg-white" : "bg-[#272727]";
+    const modalText = isLight ? "text-gray-800" : "text-white";
+    const modalMuted = isLight ? "text-gray-600" : "text-gray-400";
+    const settingsBg = isLight ? "bg-white" : "bg-[#272727]";
+    const settingsBorder = isLight ? "border-gray-200" : "border-[#3a3a3a]";
+    const qualityBtnBg = isLight ? "bg-gray-200" : "bg-[#3a3a3a]";
+    const qualityBtnHover = isLight ? "hover:bg-gray-300" : "hover:bg-[#4a4a4a]";
+    const qualityBtnActive = isLight ? "bg-black" : "bg-blue-600";
+    const qualityBtnText = isLight ? "text-gray-800" : "text-gray-300";
+    const qualityBtnActiveText = isLight ? "text-white" : "text-white";
+    const downloadMenuBg = isLight ? "bg-white" : "bg-[#272727]";
+    const downloadMenuBorder = isLight ? "border-gray-200" : "border-[#3a3a3a]";
+    const downloadItemHover = isLight ? "hover:bg-gray-100" : "hover:bg-[#3a3a3a]";
 
     const requireLogin = () => {
         alert("Please sign in to use this feature.");
     };
 
+    const startWatchTimer = () => {
+        console.log("🚀 TIMER STARTED");
+        console.log("👤 USER =", user);
+
+        if (watchTimeInterval.current) {
+            console.log("⚠️ Timer already running");
+            return;
+        }
+
+        watchTimeInterval.current = setInterval(() => {
+            setWatchTime((prev) => {
+                const newTime = prev + 1;
+
+                console.log("⏱️ Time =", newTime);
+                console.log("📦 Plan =", user?.watchPlan);
+
+                if (user) {
+                    const limits: Record<string, number> = {
+                        free: 10,
+                        bronze: 15,
+                        silver: 20,
+                        gold: Infinity,
+                    };
+
+                    const limit =
+                        limits[user.watchPlan || "free"];
+
+                    console.log("🎯 Limit =", limit);
+
+                    if (
+                        newTime >= limit &&
+                        limit !== Infinity
+                    ) {
+                        console.log("🛑 LIMIT REACHED");
+
+                        setWatchLimitReached(true);
+
+                        if (videoRef.current) {
+                            console.log("⏸️ Pausing video");
+
+                            videoRef.current.pause();
+
+                            setIsPlaying(false);
+                        }
+
+                        if (watchTimeInterval.current) {
+                            console.log("🧹 Clearing timer");
+
+                            clearInterval(
+                                watchTimeInterval.current
+                            );
+
+                            watchTimeInterval.current = null;
+                        }
+                    }
+                } else {
+                    console.log("❌ User not found");
+                }
+
+                return newTime;
+            });
+        }, 1000);
+    };
+
+    const stopWatchTimer = () => {
+        console.log("🛑 STOP TIMER CALLED");
+
+        if (watchTimeInterval.current) {
+            clearInterval(watchTimeInterval.current);
+            watchTimeInterval.current = null;
+
+            console.log("🧹 TIMER CLEARED");
+        }
+    };
+
+    const togglePlay = () => {
+        console.log("TOGGLE CLICKED");
+
+        if (!videoRef.current) {
+            console.log("NO VIDEO REF");
+            return;
+        }
+
+        if (isPlaying) {
+            console.log("PAUSE");
+
+            videoRef.current.pause();
+            setIsPlaying(false);
+            stopWatchTimer();
+        } else {
+            console.log("PLAY");
+            console.log("LIMIT =", watchLimitReached);
+
+            if (watchLimitReached) {
+                alert("Watch limit reached");
+                return;
+            }
+
+            videoRef.current.play();
+
+            console.log("STARTING TIMER");
+
+            setIsPlaying(true);
+            startWatchTimer();
+        }
+    };
+    useEffect(() => {
+        console.log("PLAYER PAGE MOUNTED");
+
+        startWatchTimer();
+
+        return () => {
+            stopWatchTimer();
+        };
+    }, []);
+    // Clean up interval on unmount
+    useEffect(() => {
+        return () => {
+            stopWatchTimer();
+        };
+    }, []);
+
+
     const fetchVideo = async () => {
         try {
             setLoading(true);
-            if (!id) return;
 
-            if (!hasViewed.current) {
-                hasViewed.current = true;
-                await incrementViews(id);
-            }
+            setWatchTime(0);
+            setWatchLimitReached(false);
 
-            const response = await getVideoById(id);
+            const response = await getVideoById(id!);
+
             setVideo(response.data);
         } catch (error) {
-            console.error("Player Error:", error);
+            console.error(error);
         } finally {
             setLoading(false);
         }
@@ -99,7 +256,6 @@ const PlayerPage = () => {
         try {
             setSuggestedLoading(true);
             const response = await getVideos();
-            // Filter out current video and get random 10 videos
             const filtered = response.data.filter((v: Video) => v._id !== id);
             const shuffled = filtered.sort(() => 0.5 - Math.random());
             setSuggestedVideos(shuffled.slice(0, 10));
@@ -116,43 +272,15 @@ const PlayerPage = () => {
     }, [id]);
 
     useEffect(() => {
-        if (!user) return;
-
-        const limits: Record<string, number> = {
-            free: 10000,      // 5 min
-            bronze: 420000,    // 7 min
-            silver: 600000,    // 10 min
-            gold: Infinity,
-        };
-
-        const limit =
-            limits[user.watchPlan || "free"];
-
-        if (limit === Infinity) return;
-
-        const timer = setTimeout(() => {
-            setWatchLimitReached(true);
-        }, limit);
-
-        return () => clearTimeout(timer);
-
-    }, [user]);
-
-    useEffect(() => {
         if (videoRef.current) {
             videoRef.current.playbackRate = playbackSpeed;
         }
     }, [playbackSpeed]);
 
-    // Handle quality change
     const handleQualityChange = (quality: string) => {
         setSelectedQuality(quality);
         if (quality !== "Auto" && videoRef.current) {
-            // Note: Actual quality switching requires multiple video sources
-            // This is a placeholder for the logic
             console.log(`Quality changed to ${quality}`);
-            // In production, you would need to have different source files
-            // and switch the video source here
         }
     };
 
@@ -180,12 +308,7 @@ const PlayerPage = () => {
     const handleLike = async () => {
         try {
             if (!user || !video) return;
-
-            const response = await likeVideo(
-                video._id,
-                user.email
-            );
-
+            const response = await likeVideo(video._id, user.email);
             setVideo(response.data);
         } catch (error) {
             console.error(error);
@@ -195,13 +318,7 @@ const PlayerPage = () => {
     const handleDislike = async () => {
         try {
             if (!user || !video) return;
-
-            const response =
-                await dislikeVideo(
-                    video._id,
-                    user.email
-                );
-
+            const response = await dislikeVideo(video._id, user.email);
             setVideo(response.data);
         } catch (error) {
             console.error(error);
@@ -222,29 +339,16 @@ const PlayerPage = () => {
 
     const handleDownload = async () => {
         try {
-
             console.log("USER =", user);
             console.log("USER_ID =", user?._id);
             console.log("VIDEO_ID =", video?._id);
 
-            const userResponse =
-                await getUserByEmail(user.email);
-
-            const userId =
-                userResponse.data._id;
-
-            const response =
-                await downloadVideo(
-                    userId,
-                    video!._id
-                );
-
+            const userResponse = await getUserByEmail(user.email);
+            const userId = userResponse.data._id;
+            const response = await downloadVideo(userId, video!._id);
             alert(response.message);
         } catch (error: any) {
-            alert(
-                error?.response?.data?.message ||
-                "Download failed"
-            );
+            alert(error?.response?.data?.message || "Download failed");
         }
     };
 
@@ -257,18 +361,25 @@ const PlayerPage = () => {
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
+    // Format watch time for display
+    const formatWatchTime = (seconds: number): string => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+            <div className={`min-h-screen ${bgColor} flex items-center justify-center`}>
+                <div className={`animate-spin rounded-full h-12 w-12 border-4 ${spinnerBorder} ${spinnerAccent}`}></div>
             </div>
         );
     }
 
     if (!video) {
         return (
-            <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
-                <div className="text-white text-xl">Video not found</div>
+            <div className={`min-h-screen ${bgColor} flex items-center justify-center`}>
+                <div className={`${textColor} text-xl`}>Video not found</div>
             </div>
         );
     }
@@ -277,9 +388,22 @@ const PlayerPage = () => {
     const isYoutube = videoUrl?.includes("youtube.com") || videoUrl?.includes("youtu.be");
     const youtubeId = isYoutube && videoUrl ? videoUrl.split("/").pop()?.split("?")[0] : null;
 
+    // Get watch limit for display
+    const getWatchLimitDisplay = () => {
+        if (!user) return null;
+        const limits: Record<string, number> = {
+            free: 300,
+            bronze: 420,
+            silver: 600,
+            gold: Infinity,
+        };
+        const limit = limits[user.watchPlan || "free"];
+        if (limit === Infinity) return "Unlimited";
+        return formatWatchTime(limit);
+    };
+
     return (
-        <div className="min-h-screen bg-[#0f0f0f]">
-            {/* Main Content - Added padding-top for navbar */}
+        <div className={`min-h-screen ${bgColor}`}>
             <main className="pt-14">
                 <div className="max-w-350 mx-auto px-4 py-6">
                     <div className="flex flex-col lg:flex-row gap-6">
@@ -296,10 +420,10 @@ const PlayerPage = () => {
                                         allowFullScreen
                                     />
                                 ) : videoError ? (
-                                    <div className="aspect-video bg-gray-900 flex items-center justify-center">
+                                    <div className={`aspect-video ${isLight ? 'bg-gray-200' : 'bg-gray-900'} flex items-center justify-center`}>
                                         <div className="text-center">
-                                            <p className="text-white text-lg mb-2">⚠️ Video failed to load</p>
-                                            <p className="text-gray-400 text-sm break-all">URL: {videoUrl}</p>
+                                            <p className={`${textColor} text-lg mb-2`}>⚠️ Video failed to load</p>
+                                            <p className={`${mutedText} text-sm break-all`}>URL: {videoUrl}</p>
                                             <button onClick={() => setVideoError(false)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                                                 Retry
                                             </button>
@@ -308,31 +432,74 @@ const PlayerPage = () => {
                                 ) : (
                                     <>
                                         <video
+                                            onClick={() => {
+                                                console.log("VIDEO CLICKED");
+                                            }}
+                                            autoPlay
                                             ref={videoRef}
                                             key={videoUrl}
                                             controls={false}
-                                            autoPlay
+                                            onLoadedMetadata={() => {
+                                                console.log("VIDEO LOADED");
+                                            }}
+
+                                            onCanPlay={() => {
+                                                console.log("VIDEO CAN PLAY");
+                                            }}
+
+                                            onPlay={() => {
+                                                console.log("VIDEO PLAY EVENT");
+                                                setIsPlaying(true);
+                                                startWatchTimer();
+                                            }}
                                             className="w-full aspect-video"
                                             preload="metadata"
                                             onError={() => setVideoError(true)}
+
+                                            onPause={() => {
+                                                setIsPlaying(false);
+                                                stopWatchTimer();
+                                            }}
+                                            onEnded={() => {
+                                                setIsPlaying(false);
+                                                stopWatchTimer();
+                                            }}
                                         >
                                             <source src={videoUrl} type="video/mp4" />
                                         </video>
 
+                                        {/* Watch Time Indicator */}
+                                        {user && user.watchPlan !== "gold" && (
+                                            <div className="absolute top-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full">
+                                                ⏱ {formatWatchTime(watchTime)} / {getWatchLimitDisplay()}
+                                            </div>
+                                        )}
+
                                         {/* Custom Video Controls */}
                                         <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
                                             <div className="flex items-center gap-4">
-                                                <button onClick={() => videoRef.current?.play()} className="text-white hover:text-gray-300">
-                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M8 5v14l11-7z" />
-                                                    </svg>
+                                                <button onClick={togglePlay} className="text-white hover:text-gray-300">
+                                                    {isPlaying ? (
+                                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    )}
                                                 </button>
-                                                <button onClick={() => videoRef.current?.pause()} className="text-white hover:text-gray-300">
-                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                                                    </svg>
-                                                </button>
-                                                <button onClick={() => setIsMuted(!isMuted)} className="text-white hover:text-gray-300">
+                                                <button onClick={() => {
+                                                    if (videoRef.current) {
+                                                        if (isMuted) {
+                                                            videoRef.current.muted = false;
+                                                            setIsMuted(false);
+                                                        } else {
+                                                            videoRef.current.muted = true;
+                                                            setIsMuted(true);
+                                                        }
+                                                    }
+                                                }} className="text-white hover:text-gray-300">
                                                     {isMuted ? (
                                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                                             <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM9 6.17L3.06 10.1 1 8.04 5.04 4 1.06 0 0 1.06l13 13L12.94 15l-4-4v5.5L6 14l-3 2V8h.17L2 9.06v6.88l2-1.33 2 1.33V14.9l-1.21 1.21L2 16.09v3.47l3-2 2 1.33v-5.5l4 4v5.5l-2-1.33-2 1.33V20.9l3-2 2 1.33v-3.47l-1.21-1.21L9 14.9v-5.5L4.1 5.17 9 3.17v3z" />
@@ -356,22 +523,22 @@ const PlayerPage = () => {
 
                             {/* Video Info */}
                             <div className="mt-4">
-                                <h1 className="text-white text-xl md:text-2xl font-bold">
+                                <h1 className={`${textColor} text-xl md:text-2xl font-bold`}>
                                     {video.title}
                                 </h1>
 
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4 pb-4 border-b border-[#272727]">
+                                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4 pb-4 border-b ${borderColor}`}>
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-[#272727] flex items-center justify-center">
-                                            <span className="text-white font-medium">
+                                        <div className={`w-10 h-10 rounded-full ${cardBg} flex items-center justify-center`}>
+                                            <span className={`${textColor} font-medium`}>
                                                 {(video.channelName || video.uploadedBy || "C").charAt(0).toUpperCase()}
                                             </span>
                                         </div>
                                         <div>
-                                            <h3 className="text-white font-medium">
+                                            <h3 className={`${textColor} font-medium`}>
                                                 {video.channelName || video.uploadedBy || "Unknown Channel"}
                                             </h3>
-                                            <p className="text-[#aaaaaa] text-sm">
+                                            <p className={`${mutedText} text-sm`}>
                                                 {formatViews(video.subscribers || 0)} subscribers
                                             </p>
                                         </div>
@@ -383,16 +550,13 @@ const PlayerPage = () => {
                                                 }
                                                 setIsSubscribed(!isSubscribed);
                                             }}
-                                            className={`px-4 py-2 rounded-full font-medium text-sm transition ${isSubscribed
-                                                ? "bg-[#272727] text-white hover:bg-[#3a3a3a]"
-                                                : "bg-white text-black hover:bg-gray-200"
-                                                }`}
+                                            className={`px-4 py-2 rounded-full font-medium text-sm transition ${subscribeBg} ${subscribeText} ${subscribeHover}`}
                                         >
                                             {isSubscribed ? "Subscribed" : "Subscribe"}
                                         </button>
                                     </div>
 
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={() => {
                                                 if (!isLoggedIn) {
@@ -401,7 +565,7 @@ const PlayerPage = () => {
                                                 }
                                                 handleLike();
                                             }}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isLiked ? "bg-blue-600 text-white" : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isLiked ? "bg-blue-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`
                                                 }`}
                                         >
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -418,7 +582,7 @@ const PlayerPage = () => {
                                                 }
                                                 handleDislike();
                                             }}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isDisliked ? "bg-red-600 text-white" : "bg-[#272727] text-white hover:bg-[#3a3a3a]"
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isDisliked ? "bg-red-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`
                                                 }`}
                                         >
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -427,20 +591,20 @@ const PlayerPage = () => {
                                             <span>{video.dislikes || 0}</span>
                                         </button>
 
-                                        <button className="flex items-center gap-2 bg-[#272727] hover:bg-[#3a3a3a] px-4 py-2 rounded-full transition">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <button className={`flex items-center gap-2 ${buttonBg} ${buttonBgHover} px-4 py-2 rounded-full transition`}>
+                                            <svg className={`w-5 h-5 ${textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                                             </svg>
-                                            <span className="text-white text-sm">Share</span>
+                                            <span className={`${textColor} text-sm`}>Share</span>
                                         </button>
 
                                         {/* Download Button with Menu */}
                                         <div className="relative">
                                             <button
                                                 onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                                                className="bg-[#272727] hover:bg-[#3a3a3a] p-2 rounded-full transition"
+                                                className={`${buttonBg} ${buttonBgHover} p-2 rounded-full transition`}
                                             >
-                                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <svg className={`w-5 h-5 ${textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>
                                             </button>
@@ -448,26 +612,26 @@ const PlayerPage = () => {
                                             {showDownloadMenu && (
                                                 <>
                                                     <div className="fixed inset-0 z-40" onClick={() => setShowDownloadMenu(false)} />
-                                                    <div className="absolute right-0 mt-2 w-48 bg-[#272727] rounded-xl shadow-lg z-50 overflow-hidden">
+                                                    <div className={`absolute right-0 mt-2 w-48 ${downloadMenuBg} rounded-xl shadow-lg z-50 overflow-hidden border ${downloadMenuBorder}`}>
                                                         <div className="py-2">
-                                                            <div className="px-4 py-2 text-[#aaaaaa] text-xs border-b border-[#3a3a3a]">
+                                                            <div className={`px-4 py-2 ${mutedText} text-xs border-b ${downloadMenuBorder}`}>
                                                                 Download Video
                                                             </div>
                                                             <button
                                                                 onClick={handleDownload}
-                                                                className="w-full text-left px-4 py-2 text-white text-sm hover:bg-[#3a3a3a] transition"
+                                                                className={`w-full text-left px-4 py-2 ${textColor} text-sm ${downloadItemHover} transition`}
                                                             >
                                                                 📹 1080p (High)
                                                             </button>
                                                             <button
                                                                 onClick={handleDownload}
-                                                                className="w-full text-left px-4 py-2 text-white text-sm hover:bg-[#3a3a3a] transition"
+                                                                className={`w-full text-left px-4 py-2 ${textColor} text-sm ${downloadItemHover} transition`}
                                                             >
                                                                 📹 720p (Medium)
                                                             </button>
                                                             <button
                                                                 onClick={handleDownload}
-                                                                className="w-full text-left px-4 py-2 text-white text-sm hover:bg-[#3a3a3a] transition"
+                                                                className={`w-full text-left px-4 py-2 ${textColor} text-sm ${downloadItemHover} transition`}
                                                             >
                                                                 📹 480p (Low)
                                                             </button>
@@ -481,30 +645,30 @@ const PlayerPage = () => {
                                         <div className="relative">
                                             <button
                                                 onClick={() => setShowSettings(!showSettings)}
-                                                className="bg-[#272727] hover:bg-[#3a3a3a] p-2 rounded-full transition"
+                                                className={`${buttonBg} ${buttonBgHover} p-2 rounded-full transition`}
                                             >
-                                                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                                <svg className={`w-5 h-5 ${textColor}`} fill="currentColor" viewBox="0 0 24 24">
                                                     <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.33-.02-.64-.06-.94l2.02-1.58c.18-.14.23-.38.12-.56l-1.89-3.28c-.12-.19-.36-.26-.56-.18l-2.38.96c-.5-.38-1.06-.68-1.66-.88L14.45 3.5c-.04-.2-.2-.34-.4-.34h-3.78c-.2 0-.36.14-.4.34l-.3 2.52c-.6.2-1.16.5-1.66.88l-2.38-.96c-.2-.08-.44-.01-.56.18l-1.89 3.28c-.12.19-.07.42.12.56l2.02 1.58c-.04.3-.06.61-.06.94 0 .33.02.64.06.94l-2.02 1.58c-.18.14-.23.38-.12.56l1.89 3.28c.12.19.36.26.56.18l2.38-.96c.5.38 1.06.68 1.66.88l.3 2.52c.04.2.2.34.4.34h3.78c.2 0 .36-.14.4-.34l.3-2.52c.6-.2 1.16-.5 1.66-.88l2.38.96c.2.08.44.01.56-.18l1.89-3.28c.12-.19.07-.42-.12-.56l-2.02-1.58zM12 15c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                                                 </svg>
                                             </button>
 
                                             {showSettings && (
-                                                <div className="absolute right-0 mt-2 w-72 bg-[#272727] rounded-xl shadow-lg z-50">
+                                                <div className={`absolute right-0 mt-2 w-72 ${settingsBg} rounded-xl shadow-lg z-50 border ${settingsBorder}`}>
                                                     <div className="p-2">
-                                                        <div className="px-3 py-2 text-white font-semibold border-b border-[#3a3a3a]">
+                                                        <div className={`px-3 py-2 ${textColor} font-semibold border-b ${settingsBorder}`}>
                                                             Settings
                                                         </div>
 
                                                         <div className="px-3 py-2">
-                                                            <div className="text-white text-sm mb-2">Quality</div>
+                                                            <div className={`${textColor} text-sm mb-2`}>Quality</div>
                                                             <div className="grid grid-cols-3 gap-1">
                                                                 {qualities.map((quality) => (
                                                                     <button
                                                                         key={quality}
                                                                         onClick={() => handleQualityChange(quality)}
                                                                         className={`px-2 py-1 text-xs rounded ${selectedQuality === quality
-                                                                            ? "bg-blue-600 text-white"
-                                                                            : "bg-[#3a3a3a] text-gray-300 hover:bg-[#4a4a4a]"
+                                                                            ? `${qualityBtnActive} ${qualityBtnActiveText}`
+                                                                            : `${qualityBtnBg} ${qualityBtnText} ${qualityBtnHover}`
                                                                             }`}
                                                                     >
                                                                         {quality}
@@ -513,16 +677,16 @@ const PlayerPage = () => {
                                                             </div>
                                                         </div>
 
-                                                        <div className="px-3 py-2 border-t border-[#3a3a3a]">
-                                                            <div className="text-white text-sm mb-2">Playback Speed</div>
+                                                        <div className={`px-3 py-2 border-t ${settingsBorder}`}>
+                                                            <div className={`${textColor} text-sm mb-2`}>Playback Speed</div>
                                                             <div className="grid grid-cols-4 gap-1">
                                                                 {speeds.map((speed) => (
                                                                     <button
                                                                         key={speed}
                                                                         onClick={() => setPlaybackSpeed(speed)}
                                                                         className={`px-2 py-1 text-xs rounded ${playbackSpeed === speed
-                                                                            ? "bg-blue-600 text-white"
-                                                                            : "bg-[#3a3a3a] text-gray-300 hover:bg-[#4a4a4a]"
+                                                                            ? `${qualityBtnActive} ${qualityBtnActiveText}`
+                                                                            : `${qualityBtnBg} ${qualityBtnText} ${qualityBtnHover}`
                                                                             }`}
                                                                     >
                                                                         {speed}x
@@ -537,12 +701,12 @@ const PlayerPage = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-[#272727] rounded-xl p-4 mt-4">
-                                    <div className="flex gap-4 text-sm text-[#aaaaaa] mb-2">
+                                <div className={`${cardBg} rounded-xl p-4 mt-4`}>
+                                    <div className={`flex gap-4 text-sm ${mutedText} mb-2`}>
                                         <span>{formatViews(video.views || 0)} views</span>
                                         <span>{formatDate(video.createdAt || video.uploadDate)}</span>
                                     </div>
-                                    <p className="text-white whitespace-pre-wrap">
+                                    <p className={`${textColor} whitespace-pre-wrap`}>
                                         {video.description || "No description available."}
                                     </p>
                                 </div>
@@ -551,11 +715,11 @@ const PlayerPage = () => {
                                 {isLoggedIn ? (
                                     <CommentsPage videoId={id} />
                                 ) : (
-                                    <div className="bg-[#272727] rounded-xl p-6 mt-6">
-                                        <h3 className="text-white text-lg font-semibold">
+                                    <div className={`${cardBg} rounded-xl p-6 mt-6`}>
+                                        <h3 className={`${textColor} text-lg font-semibold`}>
                                             Sign in to comment
                                         </h3>
-                                        <p className="text-[#aaaaaa] mt-2">
+                                        <p className={`${mutedText} mt-2`}>
                                             Join the conversation, comment on videos,
                                             and interact with creators.
                                         </p>
@@ -573,22 +737,22 @@ const PlayerPage = () => {
                         {/* Right Column - Suggested Videos from Database */}
                         <div className="lg:w-100">
                             <div className="space-y-3">
-                                <h3 className="text-white font-semibold mb-3">Suggested Videos</h3>
+                                <h3 className={`${textColor} font-semibold mb-3`}>Suggested Videos</h3>
 
                                 {suggestedLoading ? (
                                     <div className="flex justify-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
+                                        <div className={`animate-spin rounded-full h-8 w-8 border-2 ${spinnerBorder} ${spinnerAccent}`}></div>
                                     </div>
                                 ) : suggestedVideos.length === 0 ? (
                                     <div className="text-center py-8">
-                                        <p className="text-[#aaaaaa]">No suggested videos</p>
+                                        <p className={mutedText}>No suggested videos</p>
                                     </div>
                                 ) : (
                                     suggestedVideos.map((suggestedVideo) => (
                                         <Link
                                             key={suggestedVideo._id}
                                             to={`/video/${suggestedVideo._id}`}
-                                            className="flex gap-3 cursor-pointer hover:bg-[#272727] rounded-xl p-2 transition group"
+                                            className={`flex gap-3 cursor-pointer ${cardBg} ${cardBgHover} rounded-xl p-2 transition group`}
                                         >
                                             <div className="w-40 shrink-0">
                                                 <img
@@ -601,13 +765,13 @@ const PlayerPage = () => {
                                                 />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h4 className="text-white text-sm font-medium line-clamp-2 group-hover:text-[#3ea6ff] transition">
+                                                <h4 className={`${textColor} text-sm font-medium line-clamp-2 group-hover:text-[#3ea6ff] transition`}>
                                                     {suggestedVideo.title}
                                                 </h4>
-                                                <p className="text-[#aaaaaa] text-xs mt-1">
+                                                <p className={`${mutedText} text-xs mt-1`}>
                                                     {suggestedVideo.channelName || "Channel"}
                                                 </p>
-                                                <div className="text-[#aaaaaa] text-xs mt-1">
+                                                <div className={`${mutedText} text-xs mt-1`}>
                                                     <span>{formatViews(suggestedVideo.views || 0)} views</span>
                                                 </div>
                                             </div>
@@ -619,26 +783,25 @@ const PlayerPage = () => {
                     </div>
                 </div>
             </main>
-            {watchLimitReached && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                    <div className="bg-[#272727] p-6 rounded-xl w-100 text-center">
-                        <h2 className="text-2xl font-bold text-white">
-                            Watch Limit Reached
-                        </h2>
 
-                        <p className="text-gray-400 mt-3">
-                            Your current watch plan limit has been reached.
+            {watchLimitReached && (
+                <div className={`fixed inset-0 ${overlayBg} flex items-center justify-center z-50`}>
+                    <div className={`${modalBg} p-6 rounded-xl w-100 text-center`}>
+                        <h2 className={`text-2xl font-bold ${modalText}`}>
+                            ⏱️ Watch Limit Reached
+                        </h2>
+                        <p className={`${modalMuted} mt-3`}>
+                            You've watched {formatWatchTime(watchTime)} of your {getWatchLimitDisplay()} limit.
+                            <br />
                             Upgrade your plan to continue watching videos.
                         </p>
-
                         <div className="mt-6 flex justify-center gap-3">
-
-
                             <Link to="/watch-plans">
-                                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+                                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
                                     Upgrade Plan
                                 </button>
                             </Link>
+                         
                         </div>
                     </div>
                 </div>

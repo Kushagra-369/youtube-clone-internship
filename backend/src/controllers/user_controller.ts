@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 import User from "../models/user_model";
+import { sendPlanInvoice } from "../services/email_service";
 
 export const createUser = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { name, email } = req.body;
+    const { name, email, state, phone } = req.body;
 
     if (!name || !email) {
       res.status(400).json({
@@ -28,10 +29,7 @@ export const createUser = async (
       return;
     }
 
-    const user = await User.create({
-      name,
-      email,
-    });
+    const user = await User.create({ name, email, phone, state});
 
     res.status(201).json({
       success: true,
@@ -192,6 +190,20 @@ export const upgradeWatchPlan = async (
     user.watchPlan = watchPlan;
 
     await user.save();
+    const amounts: Record<string, number> = {
+      bronze: 10,
+      silver: 50,
+      gold: 100,
+    };
+
+    const amount = amounts[watchPlan] ?? 0;
+
+    await sendPlanInvoice(
+      user.email,
+      user.name,
+      watchPlan,
+      amount
+    );
 
     res.status(200).json({
       success: true,

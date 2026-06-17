@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     likeComment,
     dislikeComment,
     translateComment,
 } from "../../services/comment.service";
 import type { Comment } from "../../types/comment.types";
+import { getThemeByLocationAndTime } from "../utils/theme";
 
 interface Props {
     comment: Comment;
@@ -25,6 +26,41 @@ const CommentCard = ({
     const [localLikes, setLocalLikes] = useState<number>(comment.likes || 0);
     const [localDislikes, setLocalDislikes] = useState<number>(comment.dislikes || 0);
     const [showReplyForm, setShowReplyForm] = useState<boolean>(false);
+    const [user, setUser] = useState<any>(null);
+
+    useEffect(() => {
+        const savedUser = localStorage.getItem("user");
+        if (savedUser) {
+            setUser(JSON.parse(savedUser));
+        }
+    }, []);
+
+    // Get theme
+    const theme = getThemeByLocationAndTime(user?.state || "");
+    const isLight = theme === "light";
+
+    // Theme-based classes
+    const textColor = isLight ? "text-black" : "text-white";
+    const mutedText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
+    const borderColor = isLight ? "border-gray-200" : "border-[#272727]";
+    const hoverBg = isLight ? "hover:bg-gray-50" : "hover:bg-[#1a1a1a]";
+    const avatarBg = isLight ? "bg-gray-200" : "bg-[#272727]";
+    const avatarText = isLight ? "text-gray-800" : "text-white";
+    const avatarBorder = isLight ? "border-2 border-gray-300" : "";
+    const translateBg = isLight ? "bg-gray-100" : "bg-[#1a1a1a]";
+    const translateBorder = isLight ? "border-gray-300" : "border-[#272727]";
+    const translateText = isLight ? "text-blue-600" : "text-[#3ea6ff]";
+    const likeColor = isLiked ? (isLight ? "text-blue-600" : "text-[#3ea6ff]") : (isLight ? "text-gray-500" : "text-[#aaaaaa]");
+    const likeHover = isLight ? "hover:text-black" : "hover:text-white";
+    const dislikeColor = isDisliked ? "text-red-500" : (isLight ? "text-gray-500" : "text-[#aaaaaa]");
+    const dislikeHover = isLight ? "hover:text-black" : "hover:text-white";
+    const selectBg = isLight ? "bg-white" : "bg-[#272727]";
+    const selectBorder = isLight ? "border-gray-300" : "border-[#3a3a3a]";
+    const selectText = isLight ? "text-gray-800" : "text-white";
+    const selectFocus = isLight ? "focus:border-black" : "focus:border-[#3ea6ff]";
+    const replyInputBg = isLight ? "bg-white" : "bg-transparent";
+    const replyBorder = isLight ? "border-gray-300" : "border-[#3a3a3a]";
+    const replyFocus = isLight ? "focus:border-black" : "focus:border-[#3ea6ff]";
 
     const handleLike = async (): Promise<void> => {
         if (!currentUserId) {
@@ -101,11 +137,11 @@ const CommentCard = ({
     };
 
     return (
-        <div className="flex gap-4 py-4 border-b border-[#272727] hover:bg-[#1a1a1a] transition px-2 rounded-lg">
+        <div className={`flex gap-4 py-4 border-b ${borderColor} ${hoverBg} transition px-2 rounded-lg ${isLight ? 'border-l-2 border-l-transparent hover:border-l-gray-400' : ''}`}>
             {/* Avatar */}
             <div className="shrink-0">
-                <div className="w-10 h-10 rounded-full bg-[#272727] flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
+                <div className={`w-10 h-10 rounded-full ${avatarBg} ${avatarBorder} flex items-center justify-center`}>
+                    <span className={`${avatarText} text-sm font-medium`}>
                         {comment.userName?.[0] || comment.city?.[0] || "U"}
                     </span>
                 </div>
@@ -115,31 +151,31 @@ const CommentCard = ({
             <div className="flex-1 min-w-0">
                 {/* Header */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-white text-sm font-medium hover:underline cursor-pointer">
+                    <span className={`${textColor} text-sm font-medium hover:underline cursor-pointer`}>
                         {comment.userName || "Anonymous User"}
                     </span>
-                    <span className="text-[#aaaaaa] text-xs">
+                    <span className={`${mutedText} text-xs`}>
                         {formatDate(comment.createdAt)}
                     </span>
                 </div>
 
                 {/* Comment Text */}
-                <p className="text-white text-sm mb-2 wrap-break-words">
+                <p className={`${textColor} text-sm mb-2 wrap-break-words`}>
                     {comment.text}
                 </p>
 
                 {/* Location */}
                 {comment.city && (
-                    <p className="text-[#aaaaaa] text-xs mb-2 flex items-center gap-1">
+                    <p className={`${mutedText} text-xs mb-2 flex items-center gap-1`}>
                         <span>📍</span> {comment.city}
                     </p>
                 )}
 
                 {/* Translated Text */}
                 {translatedText && (
-                    <div className="bg-[#1a1a1a] rounded-lg p-2 mb-2 border border-[#272727]">
-                        <p className="text-[#3ea6ff] text-xs mb-1">🌐 Translated ({targetLanguage.toUpperCase()}):</p>
-                        <p className="text-white text-sm">{translatedText}</p>
+                    <div className={`${translateBg} rounded-lg p-2 mb-2 border ${translateBorder}`}>
+                        <p className={`${translateText} text-xs mb-1`}>🌐 Translated ({targetLanguage.toUpperCase()}):</p>
+                        <p className={`${textColor} text-sm`}>{translatedText}</p>
                     </div>
                 )}
 
@@ -148,8 +184,7 @@ const CommentCard = ({
                     {/* Like Button */}
                     <button
                         onClick={handleLike}
-                        className={`flex items-center gap-1 transition ${isLiked ? "text-[#3ea6ff]" : "text-[#aaaaaa] hover:text-white"
-                            }`}
+                        className={`flex items-center gap-1 transition ${likeColor} ${likeHover}`}
                     >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
@@ -160,8 +195,7 @@ const CommentCard = ({
                     {/* Dislike Button */}
                     <button
                         onClick={handleDislike}
-                        className={`flex items-center gap-1 transition ${isDisliked ? "text-red-500" : "text-[#aaaaaa] hover:text-white"
-                            }`}
+                        className={`flex items-center gap-1 transition ${dislikeColor} ${dislikeHover}`}
                     >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
@@ -172,7 +206,7 @@ const CommentCard = ({
                     {/* Reply Button */}
                     <button
                         onClick={() => setShowReplyForm(!showReplyForm)}
-                        className="text-[#aaaaaa] text-xs hover:text-white transition font-medium"
+                        className={`${mutedText} text-xs hover:${isLight ? 'text-black' : 'text-white'} transition font-medium`}
                     >
                         Reply
                     </button>
@@ -182,7 +216,7 @@ const CommentCard = ({
                         <select
                             value={targetLanguage}
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTargetLanguage(e.target.value)}
-                            className="bg-[#272727] text-white text-xs px-2 py-1 rounded border border-[#3a3a3a] focus:outline-none focus:border-[#3ea6ff] cursor-pointer"
+                            className={`${selectBg} ${selectText} text-xs px-2 py-1 rounded border ${selectBorder} ${selectFocus} focus:outline-none cursor-pointer`}
                         >
                             <option value="en">English</option>
                             <option value="hi">हिंदी</option>
@@ -197,7 +231,7 @@ const CommentCard = ({
                         <button
                             onClick={handleTranslate}
                             disabled={isTranslating}
-                            className="text-[#3ea6ff] text-xs hover:text-[#65b8ff] transition disabled:opacity-50"
+                            className={`${translateText} text-xs hover:${isLight ? 'text-blue-800' : 'text-[#65b8ff]'} transition disabled:opacity-50`}
                         >
                             {isTranslating ? "..." : "Translate"}
                         </button>
@@ -208,8 +242,8 @@ const CommentCard = ({
                 {showReplyForm && (
                     <div className="mt-4 pl-10">
                         <div className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#272727] flex items-center justify-center shrink-0">
-                                <svg className="w-4 h-4 text-[#aaaaaa]" fill="currentColor" viewBox="0 0 24 24">
+                            <div className={`w-8 h-8 rounded-full ${avatarBg} ${isLight ? 'border-2 border-gray-300' : ''} flex items-center justify-center shrink-0`}>
+                                <svg className={`w-4 h-4 ${isLight ? 'text-gray-600' : 'text-[#aaaaaa]'}`} fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                                 </svg>
                             </div>
@@ -217,7 +251,7 @@ const CommentCard = ({
                                 <input
                                     type="text"
                                     placeholder="Add a reply..."
-                                    className="w-full bg-transparent border-b border-[#3a3a3a] text-white py-1 text-sm focus:outline-none focus:border-[#3ea6ff] placeholder:text-[#aaaaaa]"
+                                    className={`w-full ${replyInputBg} border-b ${replyBorder} ${textColor} py-1 text-sm focus:outline-none ${replyFocus} placeholder:${isLight ? 'text-gray-400' : 'text-[#aaaaaa]'}`}
                                 />
                             </div>
                         </div>
