@@ -3,7 +3,7 @@ import express from "express";
 import {createComment,getComments,likeComment,dislikeComment, translateComment} from "../controllers/comment_controller";
 import {downloadVideo, getDownloads} from "../controllers/download_controller";
 import {createVideo,getVideos,getVideoById,incrementViews, likeVideo,dislikeVideo} from "../controllers/video_controller";
-import {createUser,getUsers,getUserById,upgradeToPremium, getUserByEmail,upgradeWatchPlan,validateUser, sendEmailOTP,verifyEmailOTP} from "../controllers/user_controller";
+import {createUser,getUsers,getUserById,upgradeToPremium, getUserByEmail,upgradeWatchPlan,validateUser, sendEmailOTP,verifyEmailOTP,updatePhoneNumber,sendPhoneOTP,verifyPhoneOTP} from "../controllers/user_controller";
 import {createChannel,getChannelByOwner,subscribeChannel,unsubscribeChannel} from "../controllers/channel_controller"
 import multer from "multer";
 import { uploadVideo } from "../controllers/upload_controller";
@@ -20,6 +20,9 @@ router.patch("/upgrade-watchplan/:userId",upgradeWatchPlan);
 router.get("/validate-user/:email",validateUser);
 router.post("/send-email-otp",sendEmailOTP);
 router.post("/verify-email-otp",verifyEmailOTP);
+router.patch("/update-phone/:userId",updatePhoneNumber);
+router.post("/send-phone-otp",sendPhoneOTP);
+router.post("/verify-phone-otp",verifyPhoneOTP);
 
 
 router.post("/create_comments", createComment);

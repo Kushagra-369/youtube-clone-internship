@@ -6,6 +6,7 @@ import PlayerPage from "../components/player/PlayerPage";
 import DownloadsPage from "../components/downloads/DownloadsPage";
 import SubscriptionPage from "../components/subscription/SubscriptionPage";
 import Watchplan from "../components/watchplan/watchplan";
+import ProtectedRoute from "../components/auth/ProtectedRoute";
 const AppRoutes = () => {
   return (
     <Routes>
@@ -28,14 +29,22 @@ const AppRoutes = () => {
       />
       <Route
         path="/downloads"
-        element={<DownloadsPage />}
+        element={
+          <ProtectedRoute>
+            <DownloadsPage />
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/channel"
-        element={<ChannelPage />}
+        element={
+          <ProtectedRoute>
+            <ChannelPage />
+          </ProtectedRoute>
+        }
       />
       <Route path="/premium" element={<SubscriptionPage />} />
-      <Route path="/watch-plans" element= {<Watchplan/>}/>
+      <Route path="/watch-plans" element={<Watchplan />} />
     </Routes>
   );
 };

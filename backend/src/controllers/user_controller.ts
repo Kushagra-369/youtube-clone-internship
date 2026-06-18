@@ -326,3 +326,129 @@ export const verifyEmailOTP = async (
     success: true,
   });
 };
+
+export const updatePhoneNumber = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { phone } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    user.phone = phone;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Phone updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+export const sendPhoneOTP = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { phone } = req.body;
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    const user = await User.findOne({
+      phone,
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.otp = otp;
+    user.otpExpiry = new Date(
+      Date.now() + 5 * 60 * 1000
+    );
+
+    await user.save();
+
+    console.log(
+      "📱 PHONE OTP =",
+      otp
+    );
+
+    res.json({
+      success: true,
+      message: "Phone OTP sent",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+    });
+  }
+};
+
+export const verifyPhoneOTP = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { phone, otp } = req.body;
+
+    const user = await User.findOne({
+      phone,
+    });
+
+    if (
+      !user ||
+      user.otp !== otp ||
+      !user.otpExpiry ||
+      user.otpExpiry < new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    user.otp = "";
+    user.otpExpiry = null;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "OTP verified",
+      data: user,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+    });
+  }
+};

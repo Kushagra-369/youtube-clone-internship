@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
+ 
 export const sendPlanInvoice = async (
   email: string,
   name: string,

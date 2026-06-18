@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
-import { createUser, getUserByEmail } from "../../services/user.service";
+import { createUser, getUserByEmail, sendEmailOTP, verifyEmailOTP, updatePhoneNumber, sendPhoneOTP, verifyPhoneOTP } from "../../services/user.service";
 import { getThemeByLocationAndTime } from "../utils/theme";
+
 
 const Navbar = () => {
     const [user, setUser] = useState<any>(
@@ -12,6 +13,18 @@ const Navbar = () => {
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
+    const [showOtpModal, setShowOtpModal] =
+        useState(false);
+    const [showPhoneModal, setShowPhoneModal] =
+        useState(false);
+
+    const [phone, setPhone] =
+        useState("");
+    const [otp, setOtp] =
+        useState("");
+
+    const [pendingUser, setPendingUser] =
+        useState<any>(null);
 
     const handleGoogleSuccess = async (
         credentialResponse: any
@@ -86,9 +99,44 @@ const Navbar = () => {
                 plan: mongoUser.plan,
                 watchPlan: mongoUser.watchPlan,
                 state: mongoUser.state,
+                phone: mongoUser.phone,
                 picture: decoded.picture,
             };
-            
+
+            const southStates = [
+                "Tamil Nadu",
+                "Kerala",
+                "Karnataka",
+                "Andhra Pradesh",
+                "Telangana"
+            ];
+            if (
+                southStates.includes(
+                    mongoUser.state
+                )
+            ) {
+                await sendEmailOTP(
+                    mongoUser.email
+                );
+
+                setPendingUser(userData);
+
+                setShowOtpModal(true);
+
+                return;
+            }
+            if (!southStates.includes(mongoUser.state)) {
+
+                if (!mongoUser.phone) {
+
+                    setPendingUser(userData);
+
+                    setShowPhoneModal(true);
+
+                    return;
+                }
+            }
+
             localStorage.setItem(
                 "user",
                 JSON.stringify(userData)
@@ -107,6 +155,28 @@ const Navbar = () => {
             );
         }
     };
+
+    const handleSavePhone =
+        async () => {
+
+            await updatePhoneNumber(
+                pendingUser._id,
+                phone
+            );
+
+            const updatedUser = {
+                ...pendingUser,
+                phone,
+            };
+
+            await sendPhoneOTP(phone);
+
+            setPendingUser(updatedUser);
+
+            setShowPhoneModal(false);
+
+            setShowOtpModal(true);
+        };
 
     const theme =
         getThemeByLocationAndTime(
@@ -146,6 +216,65 @@ const Navbar = () => {
         navigate("/");
     };
 
+    const handleVerifyOTP =async () => {
+            try {
+
+                const southStates = [
+                    "Tamil Nadu",
+                    "Kerala",
+                    "Karnataka",
+                    "Andhra Pradesh",
+                    "Telangana"
+                ];
+
+                if (
+                    southStates.includes(
+                        pendingUser.state
+                    )
+                ) {
+
+                    await verifyEmailOTP(
+                        pendingUser.email,
+                        otp
+                    );
+
+                } else {
+
+                    await verifyPhoneOTP(
+                        pendingUser.phone,
+                        otp
+                    );
+
+                }
+
+                localStorage.setItem(
+                    "user",
+                    JSON.stringify(
+                        pendingUser
+                    )
+                );
+
+                setUser(
+                    pendingUser
+                );
+
+                setShowOtpModal(
+                    false
+                );
+
+                alert(
+                    "Login Successful"
+                );
+
+            } catch {
+
+                alert(
+                    "Invalid OTP"
+                );
+
+            }
+        };
+
     const handleViewChannel = () => {
         setShowDropdown(false);
         navigate("/channel");
@@ -166,122 +295,188 @@ const Navbar = () => {
     }, []);
 
     return (
-        <nav
-            className={`fixed top-0 left-0 right-0 z-50 ${bgColor} ${textColor} border-b ${borderColor}`}
-        >
-            <div className="flex items-center justify-between px-4 py-2">
-                <Link to="/" className="flex items-center gap-1">
-                    <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
-                        <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
-                    </svg>
-                    <span className={`text-xl font-semibold ${logoText}`}>
-                        YouTube
-                    </span>
-                </Link>
-
-                <div className="flex-1 max-w-2xl mx-4">
-                    <div className="flex">
-                        <input
-                            type="text"
-                            placeholder="Search"
-                            className={`w-full px-4 py-2 ${inputBg} border ${borderColor} rounded-l-full ${inputText} ${inputPlaceholder} focus:outline-none ${inputFocus}`}
-                        />
-                        <button className={`px-6 ${searchBtnBg} border ${borderColor} border-l-0 rounded-r-full ${searchBtnHover} transition`}>
-                            <svg className={`w-5 h-5 ${searchBtnText}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Link to="/watch-plans">
-                        <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${watchPlansBtn}`}
-                        >
-                            Watch Plans
-                        </button>
+        <>
+            <nav
+                className={`fixed top-0 left-0 right-0 z-50 ${bgColor} ${textColor} border-b ${borderColor}`}
+            >
+                <div className="flex items-center justify-between px-4 py-2">
+                    <Link to="/" className="flex items-center gap-1">
+                        <svg className="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.376.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.376-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
+                            <path d="M9.545 15.568L9.545 8.432L15.818 12L9.545 15.568z" fill="#0f0f0f" />
+                        </svg>
+                        <span className={`text-xl font-semibold ${logoText}`}>
+                            YouTube
+                        </span>
                     </Link>
 
-                    <Link to="/premium">
-                        <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${premiumBtn}`}
-                        >
-                            Premium
-                        </button>
-                    </Link>
-                    <Link
-                        to="/downloads"
-                        className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${downloadsBtn}`}
-                    >
-                        Downloads
-                    </Link>
-                    {user ? (
-                        <div className="relative" ref={dropdownRef}>
-                            <img
-                                src={user.picture}
-                                alt={user.name}
-                                className={`w-10 h-10 rounded-full cursor-pointer ${avatarRing} transition-all ${isLight ? 'border-2 border-gray-200' : ''}`}
-                                onClick={() => setShowDropdown(!showDropdown)}
+                    <div className="flex-1 max-w-2xl mx-4">
+                        <div className="flex">
+                            <input
+                                type="text"
+                                placeholder="Search"
+                                className={`w-full px-4 py-2 ${inputBg} border ${borderColor} rounded-l-full ${inputText} ${inputPlaceholder} focus:outline-none ${inputFocus}`}
                             />
+                            <button className={`px-6 ${searchBtnBg} border ${borderColor} border-l-0 rounded-r-full ${searchBtnHover} transition`}>
+                                <svg className={`w-5 h-5 ${searchBtnText}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
 
-                            {/* Dropdown Menu */}
-                            {showDropdown && (
-                                <div className={`absolute right-0 mt-2 w-72 ${dropdownBg} rounded-lg shadow-lg border ${dropdownBorder} overflow-hidden z-50`}>
-                                    {/* User Info Section */}
-                                    <div className={`px-4 py-3 border-b ${dropdownDivider}`}>
-                                        <div className="flex items-center gap-3">
-                                            <img
-                                                src={user.picture}
-                                                alt={user.name}
-                                                className={`w-12 h-12 rounded-full ${isLight ? 'border-2 border-gray-200' : ''}`}
-                                            />
-                                            <div>
-                                                <p className={`${dropdownText} font-medium text-sm`}>{user.name}</p>
-                                                <p className={`${dropdownMuted} text-xs`}>{user.email}</p>
+                    <div className="flex items-center gap-2">
+                        <Link to="/watch-plans">
+                            <button
+                                className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${watchPlansBtn}`}
+                            >
+                                Watch Plans
+                            </button>
+                        </Link>
+
+                        <Link to="/premium">
+                            <button
+                                className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${premiumBtn}`}
+                            >
+                                Premium
+                            </button>
+                        </Link>
+                        <Link
+                            to="/downloads"
+                            className={`px-4 py-1.5 text-sm font-medium rounded-full transition ${downloadsBtn}`}
+                        >
+                            Downloads
+                        </Link>
+                        {user ? (
+                            <div className="relative" ref={dropdownRef}>
+                                <img
+                                    src={user.picture}
+                                    alt={user.name}
+                                    className={`w-10 h-10 rounded-full cursor-pointer ${avatarRing} transition-all ${isLight ? 'border-2 border-gray-200' : ''}`}
+                                    onClick={() => setShowDropdown(!showDropdown)}
+                                />
+
+                                {/* Dropdown Menu */}
+                                {showDropdown && (
+                                    <div className={`absolute right-0 mt-2 w-72 ${dropdownBg} rounded-lg shadow-lg border ${dropdownBorder} overflow-hidden z-50`}>
+                                        {/* User Info Section */}
+                                        <div className={`px-4 py-3 border-b ${dropdownDivider}`}>
+                                            <div className="flex items-center gap-3">
+                                                <img
+                                                    src={user.picture}
+                                                    alt={user.name}
+                                                    className={`w-12 h-12 rounded-full ${isLight ? 'border-2 border-gray-200' : ''}`}
+                                                />
+                                                <div>
+                                                    <p className={`${dropdownText} font-medium text-sm`}>{user.name}</p>
+                                                    <p className={`${dropdownMuted} text-xs`}>{user.email}</p>
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {/* Menu Items */}
+                                        <div className="py-2">
+                                            <button
+                                                onClick={handleViewChannel}
+                                                className={`w-full px-4 py-2 text-left ${dropdownText} text-sm ${dropdownHover} transition-colors flex items-center gap-3`}
+                                            >
+                                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                View your channel
+                                            </button>
+
+                                            <div className={`border-t ${dropdownDivider} my-1`}></div>
+
+                                            <button
+                                                onClick={handleLogout}
+                                                className={`w-full px-4 py-2 text-left ${dropdownText} text-sm ${dropdownHover} transition-colors flex items-center gap-3`}
+                                            >
+                                                <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                </svg>
+                                                Logout
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    {/* Menu Items */}
-                                    <div className="py-2">
-                                        <button
-                                            onClick={handleViewChannel}
-                                            className={`w-full px-4 py-2 text-left ${dropdownText} text-sm ${dropdownHover} transition-colors flex items-center gap-3`}
-                                        >
-                                            <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                            </svg>
-                                            View your channel
-                                        </button>
-
-                                        <div className={`border-t ${dropdownDivider} my-1`}></div>
-
-                                        <button
-                                            onClick={handleLogout}
-                                            className={`w-full px-4 py-2 text-left ${dropdownText} text-sm ${dropdownHover} transition-colors flex items-center gap-3`}
-                                        >
-                                            <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                            </svg>
-                                            Logout
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className={isLight ? 'google-btn-light' : ''}>
-                            <GoogleLogin
-                                onSuccess={handleGoogleSuccess}
-                                onError={() => console.log("Login Failed")}
-                            />
-                        </div>
-                    )}
+                                )}
+                            </div>
+                        ) : (
+                            <div className={isLight ? 'google-btn-light' : ''}>
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={() => console.log("Login Failed")}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </nav>
+            </nav>
+
+            {showPhoneModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-999">
+
+                    <div className="bg-white p-6 rounded-xl w-80">
+
+                        <h2 className="text-black text-xl font-bold mb-4">
+                            Enter Mobile Number
+                        </h2>
+
+                        <input
+                            type="text"
+                            value={phone}
+                            onChange={(e) =>
+                                setPhone(e.target.value)
+                            }
+                            placeholder="9876543210"
+                            className="w-full border p-2 rounded mb-4 text-black"
+                        />
+
+                        <button
+                            onClick={handleSavePhone}
+                            className="w-full bg-blue-600 text-white py-2 rounded"
+                        >
+                            Continue
+                        </button>
+
+                    </div>
+
+                </div>
+            )}
+            {showOtpModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-999">
+
+                    <div className="bg-white p-6 rounded-xl w-80">
+
+                        <h2 className="text-black text-xl font-bold mb-4">
+                            Enter OTP
+                        </h2>
+
+                        <input
+                            type="text"
+                            value={otp}
+                            onChange={(e) =>
+                                setOtp(
+                                    e.target.value
+                                )
+                            }
+                            className="w-full border p-2 rounded mb-4 text-black"
+                        />
+
+                        <button
+                            onClick={
+                                handleVerifyOTP
+                            }
+                            className="w-full bg-blue-600 text-white py-2 rounded"
+                        >
+                            Verify OTP
+                        </button>
+
+                    </div>
+
+                </div>
+            )}
+        </>
     );
 };
 

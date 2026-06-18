@@ -40,8 +40,6 @@ export const upgradeToPremium = async (
   return response.data;
 };
 
-// frontend/src/services/user.service.ts
-
 export const upgradeWatchPlan = async (
   userId: string,
   watchPlan: string
@@ -50,6 +48,84 @@ export const upgradeWatchPlan = async (
     `${API_URL}/upgrade-watchplan/${userId}`,
     {
       watchPlan,
+    }
+  );
+
+  return response.data;
+};
+
+export const validateUser = async (
+  email: string
+) => {
+  const response = await axios.get(
+    `${API_URL}/validate-user/${email}`
+  );
+
+  return response.data;
+};
+
+export const sendEmailOTP = async (
+  email: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/send-email-otp`,
+    {
+      email,
+    }
+  );
+
+  return response.data;
+};
+
+export const verifyEmailOTP = async (
+  email: string,
+  otp: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/verify-email-otp`,
+    {
+      email,
+      otp,
+    }
+  );
+
+  return response.data;
+};
+
+export const updatePhoneNumber = async (
+  userId: string,
+  phone: string
+) => {
+  const response = await axios.patch(
+    `${API_URL}/update-phone/${userId}`,
+    {
+      phone,
+    }
+  );
+
+  return response.data;
+};
+
+export const sendPhoneOTP = async (
+  phone: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/send-phone-otp`,
+    { phone }
+  );
+
+  return response.data;
+};
+
+export const verifyPhoneOTP = async (
+  phone: string,
+  otp: string
+) => {
+  const response = await axios.post(
+    `${API_URL}/verify-phone-otp`,
+    {
+      phone,
+      otp,
     }
   );
 
