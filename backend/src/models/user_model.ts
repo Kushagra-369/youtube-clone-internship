@@ -13,8 +13,10 @@ export interface IUser extends Document {
 
   downloadCount: number;
   lastDownloadDate: Date | null;
-  phone : string;
-  state : string;
+  phone: string;
+  state: string;
+  otp : string;
+  otpExpiry: Date | null;
 
   createdAt: Date;
   updatedAt: Date;
@@ -64,6 +66,15 @@ const userSchema = new Schema<IUser>(
     },
 
     lastDownloadDate: {
+      type: Date,
+      default: null,
+    },
+    otp: {
+      type: String,
+      default: "",
+    },
+
+    otpExpiry: {
       type: Date,
       default: null,
     },

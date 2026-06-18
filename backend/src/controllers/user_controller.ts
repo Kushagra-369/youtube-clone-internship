@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import User from "../models/user_model";
 import { sendPlanInvoice } from "../services/email_service";
+import { sendOTP } from "../services/email_service";
 
 export const createUser = async (
   req: Request,
@@ -29,7 +30,7 @@ export const createUser = async (
       return;
     }
 
-    const user = await User.create({ name, email, phone, state});
+    const user = await User.create({ name, email, phone, state });
 
     res.status(201).json({
       success: true,
@@ -218,4 +219,110 @@ export const upgradeWatchPlan = async (
       message: "Internal Server Error",
     });
   }
+};
+
+export const validateUser = async (req: Request, res: Response) => {
+
+  const email = req.params.email as string;
+
+  const user = await User.findOne({
+    email,
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: user,
+  });
+};
+
+export const sendEmailOTP = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { email } = req.body;
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    let user = await User.findOne({
+      email,
+    });
+
+    if (!user) {
+      user = await User.create({
+        name: "temp",
+        email,
+      });
+    }
+
+    user.otp = otp;
+    user.otpExpiry = new Date(
+      Date.now() + 5 * 60 * 1000
+    );
+
+    await user.save();
+
+    await sendOTP(email, otp);
+
+    console.log(process.env.EMAIL_USER);
+    console.log(process.env.EMAIL_PASS);
+    res.json({
+      success: true,
+      message: "OTP sent",
+    });
+  } catch (error) {
+    console.error(
+      "SEND OTP ERROR:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+    });
+  }
+};
+
+export const verifyEmailOTP = async (
+  req: Request,
+  res: Response
+) => {
+  const { email, otp } = req.body;
+
+  const user = await User.findOne({
+    email,
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+    });
+  }
+
+  if (
+    user.otp !== otp ||
+    !user.otpExpiry ||
+    user.otpExpiry < new Date()
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid OTP",
+    });
+  }
+
+  user.otp = "";
+  user.otpExpiry = null;
+
+  await user.save();
+
+  return res.json({
+    success: true,
+  });
 };

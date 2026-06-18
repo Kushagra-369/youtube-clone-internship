@@ -1,4 +1,8 @@
+import dotenv from "dotenv";
+
+dotenv.config();
 import nodemailer from "nodemailer";
+
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -39,3 +43,26 @@ export const sendPlanInvoice = async (
     `,
   });
 };
+
+export const sendOTP = async (
+  email: string,
+  otp: string
+) => {
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Your Login OTP",
+
+    html: `
+      <h2>Login Verification</h2>
+
+      <p>Your OTP is:</p>
+
+      <h1>${otp}</h1>
+
+      <p>Valid for 5 minutes.</p>
+    `,
+  });
+};
+
+ 
