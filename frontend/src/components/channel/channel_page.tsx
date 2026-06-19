@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
     getChannelByOwner,
     createChannel,
 } from "../../services/channel.service";
 import { getVideos, incrementViews } from "../../services/video.service";
-import { uploadVideo } from "../../services/upload.service";
+import { uploadVideoFile, uploadImageFile } from "../../services/upload.service";
 import { getThemeByLocationAndTime } from "../utils/theme";
+import axios from "axios";
 
 export interface User {
-  _id: string;
-  name: string;
-  email: string;
-  plan: string;
-  watchPlan: string;
-  state: string;
+    _id: string;
+    name: string;
+    email: string;
+    plan: string;
+    watchPlan: string;
+    state: string;
 }
 
 interface Channel {
@@ -66,10 +67,18 @@ const ChannelPage = () => {
     const [uploadData, setUploadData] = useState({
         title: "",
         description: "",
-        videoUrl: "",
-        thumbnailUrl: "",
         duration: 0,
+        videoFile: null as File | null,
+        thumbnailFile: null as File | null,
     });
+
+    // Drag and drop states
+    const [isDraggingVideo, setIsDraggingVideo] = useState<boolean>(false);
+    const [isDraggingThumbnail, setIsDraggingThumbnail] = useState<boolean>(false);
+    const [videoPreview, setVideoPreview] = useState<string | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+    const videoInputRef = useRef<HTMLInputElement>(null);
+    const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const savedUser = localStorage.getItem("user");
@@ -102,6 +111,8 @@ const ChannelPage = () => {
     const bannerText = isLight ? "text-gray-600" : "text-gray-400";
     const channelAvatarText = isLight ? "text-white" : "text-white";
     const overlayBg = isLight ? "bg-white/90" : "bg-black/80";
+    const dragBorder = isLight ? "border-blue-500" : "border-blue-400";
+    const dragBg = isLight ? "bg-blue-50" : "bg-blue-900/20";
 
     useEffect(() => {
         if (!user) {
@@ -177,12 +188,98 @@ const ChannelPage = () => {
         }
     };
 
+    // File handling functions
+    const handleVideoFileSelect = (file: File | null) => {
+        if (file) {
+            // Validate file type
+            if (!file.type.startsWith('video/')) {
+                alert('Please select a valid video file');
+                return;
+            }
+            
+            // Validate file size (max 500MB)
+            if (file.size > 500 * 1024 * 1024) {
+                alert('Video file size should be less than 500MB');
+                return;
+            }
+
+            setUploadData({ ...uploadData, videoFile: file });
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setVideoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleThumbnailFileSelect = (file: File | null) => {
+        if (file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                alert('Please select a valid image file for thumbnail');
+                return;
+            }
+            
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Thumbnail file size should be less than 5MB');
+                return;
+            }
+
+            setUploadData({ ...uploadData, thumbnailFile: file });
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setThumbnailPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleVideoDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingVideo(false);
+        const file = e.dataTransfer.files[0];
+        handleVideoFileSelect(file);
+    };
+
+    const handleThumbnailDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingThumbnail(false);
+        const file = e.dataTransfer.files[0];
+        handleThumbnailFileSelect(file);
+    };
+
+    const removeVideoFile = () => {
+        setUploadData({ ...uploadData, videoFile: null });
+        setVideoPreview(null);
+        if (videoInputRef.current) {
+            videoInputRef.current.value = '';
+        }
+    };
+
+    const removeThumbnailFile = () => {
+        setUploadData({ ...uploadData, thumbnailFile: null });
+        setThumbnailPreview(null);
+        if (thumbnailInputRef.current) {
+            thumbnailInputRef.current.value = '';
+        }
+    };
+
     const handleUploadVideo = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
 
         if (!user) return;
-        if (!uploadData.title.trim() || !uploadData.videoUrl.trim() || !uploadData.thumbnailUrl.trim()) {
-            alert("Title, video URL and thumbnail URL are required");
+
+        if (
+            !uploadData.title.trim() ||
+            !uploadData.videoFile ||
+            !uploadData.thumbnailFile
+        ) {
+            alert("Title, Video File and Thumbnail are required");
             return;
         }
 
@@ -190,9 +287,8 @@ const ChannelPage = () => {
             setIsLoading(true);
             setUploadProgress(0);
 
-            // Simulate upload progress
             const interval = setInterval(() => {
-                setUploadProgress(prev => {
+                setUploadProgress((prev) => {
                     if (prev >= 90) {
                         clearInterval(interval);
                         return 90;
@@ -201,34 +297,44 @@ const ChannelPage = () => {
                 });
             }, 500);
 
-            const response = await uploadVideo({
-                title: uploadData.title,
-                description: uploadData.description,
-                videoUrl: uploadData.videoUrl,
-                thumbnailUrl: uploadData.thumbnailUrl,
-                duration: uploadData.duration,
-                uploadedBy: user._id,
-            });
+            // Upload video to Cloudinary
+            const uploadedVideo = await uploadVideoFile(uploadData.videoFile);
+
+            // Upload thumbnail to Cloudinary
+            const uploadedThumbnail = await uploadImageFile(uploadData.thumbnailFile);
+
+            // Save video in MongoDB
+            const response = await axios.post(
+                "http://localhost:1928/create_video",
+                {
+                    title: uploadData.title,
+                    description: uploadData.description,
+                    duration: uploadData.duration,
+                    uploadedBy: user._id,
+                    videoUrl: uploadedVideo.videoUrl,
+                    thumbnailUrl: uploadedThumbnail.imageUrl,
+                }
+            );
 
             clearInterval(interval);
             setUploadProgress(100);
 
-            if (response.success) {
+            if (response.data.success) {
                 alert("Video uploaded successfully!");
                 setShowUploadModal(false);
                 setUploadData({
                     title: "",
                     description: "",
-                    videoUrl: "",
-                    thumbnailUrl: "",
                     duration: 0,
+                    videoFile: null,
+                    thumbnailFile: null,
                 });
+                setVideoPreview(null);
+                setThumbnailPreview(null);
                 await fetchVideos();
-            } else {
-                alert(response.message || "Failed to upload video");
             }
         } catch (error: any) {
-            console.error("Error uploading video:", error);
+            console.error("Upload Error:", error);
             alert(error.response?.data?.message || "Failed to upload video");
         } finally {
             setIsLoading(false);
@@ -593,10 +699,10 @@ const ChannelPage = () => {
                 </div>
             )}
 
-            {/* Upload Video Modal */}
+            {/* Upload Video Modal - Updated with Drag & Drop UI */}
             {showUploadModal && (
                 <div className={`fixed inset-0 ${overlayBg} flex items-center justify-center z-50 p-4`}>
-                    <div className={`${modalBg} rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto ${isLight ? 'border border-gray-200 shadow-2xl' : ''}`}>
+                    <div className={`${modalBg} rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${isLight ? 'border border-gray-200 shadow-2xl' : ''}`}>
                         <div className={`sticky top-0 ${modalBg} p-6 border-b ${isLight ? 'border-gray-200' : 'border-gray-800'}`}>
                             <div className="flex justify-between items-center">
                                 <h2 className={`text-2xl font-bold ${textColor}`}>Upload Video</h2>
@@ -606,10 +712,12 @@ const ChannelPage = () => {
                                         setUploadData({
                                             title: "",
                                             description: "",
-                                            videoUrl: "",
-                                            thumbnailUrl: "",
+                                            videoFile: null,
+                                            thumbnailFile: null,
                                             duration: 0,
                                         });
+                                        setVideoPreview(null);
+                                        setThumbnailPreview(null);
                                     }}
                                     className={`${mutedText} hover:${isLight ? 'text-black' : 'text-white'} transition-colors`}
                                 >
@@ -620,7 +728,8 @@ const ChannelPage = () => {
                             </div>
                         </div>
 
-                        <form onSubmit={handleUploadVideo} className="p-6 space-y-4">
+                        <form onSubmit={handleUploadVideo} className="p-6 space-y-6">
+                            {/* Video Title */}
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${textColor}`}>
                                     Video Title *
@@ -639,6 +748,7 @@ const ChannelPage = () => {
                                 />
                             </div>
 
+                            {/* Video Description */}
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${textColor}`}>
                                     Description
@@ -650,45 +760,12 @@ const ChannelPage = () => {
                                     }
                                     className={`w-full px-4 py-2 ${inputBg} border ${inputBorder} rounded-lg focus:outline-none ${inputFocus} ${textColor}`}
                                     placeholder="Enter video description"
-                                    rows={4}
+                                    rows={3}
                                     disabled={isLoading}
                                 />
                             </div>
 
-                            <div>
-                                <label className={`block text-sm font-medium mb-2 ${textColor}`}>
-                                    Video URL *
-                                </label>
-                                <input
-                                    type="url"
-                                    value={uploadData.videoUrl}
-                                    onChange={(e) =>
-                                        setUploadData({ ...uploadData, videoUrl: e.target.value })
-                                    }
-                                    className={`w-full px-4 py-2 ${inputBg} border ${inputBorder} rounded-lg focus:outline-none ${inputFocus} ${textColor}`}
-                                    placeholder="https://example.com/video.mp4"
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
-                            <div>
-                                <label className={`block text-sm font-medium mb-2 ${textColor}`}>
-                                    Thumbnail URL *
-                                </label>
-                                <input
-                                    type="url"
-                                    value={uploadData.thumbnailUrl}
-                                    onChange={(e) =>
-                                        setUploadData({ ...uploadData, thumbnailUrl: e.target.value })
-                                    }
-                                    className={`w-full px-4 py-2 ${inputBg} border ${inputBorder} rounded-lg focus:outline-none ${inputFocus} ${textColor}`}
-                                    placeholder="https://example.com/thumbnail.jpg"
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </div>
-
+                            {/* Duration */}
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${textColor}`}>
                                     Duration (seconds)
@@ -706,11 +783,170 @@ const ChannelPage = () => {
                                 />
                             </div>
 
+                            {/* Video File Upload with Drag & Drop */}
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${textColor}`}>
+                                    Video File *
+                                </label>
+                                <div
+                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                                        isDraggingVideo ? `${dragBorder} ${dragBg}` : 
+                                        uploadData.videoFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                                        `${inputBorder}`
+                                    }`}
+                                    onDragEnter={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingVideo(true);
+                                    }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingVideo(true);
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingVideo(false);
+                                    }}
+                                    onDrop={handleVideoDrop}
+                                    onClick={() => videoInputRef.current?.click()}
+                                >
+                                    <input
+                                        ref={videoInputRef}
+                                        type="file"
+                                        accept="video/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0] || null;
+                                            handleVideoFileSelect(file);
+                                        }}
+                                        disabled={isLoading}
+                                    />
+                                    
+                                    {uploadData.videoFile ? (
+                                        <div className="space-y-2">
+                                            <div className="text-4xl">✅</div>
+                                            <p className={`font-medium ${textColor}`}>
+                                                {uploadData.videoFile.name}
+                                            </p>
+                                            <p className={`text-sm ${mutedText}`}>
+                                                {(uploadData.videoFile.size / (1024 * 1024)).toFixed(2)} MB
+                                            </p>
+                                            {videoPreview && (
+                                                <video 
+                                                    src={videoPreview} 
+                                                    className="max-h-32 mx-auto rounded-lg mt-2"
+                                                    controls
+                                                />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeVideoFile();
+                                                }}
+                                                className={`text-sm ${isLight ? 'text-red-600' : 'text-red-400'} hover:underline`}
+                                            >
+                                                Remove file
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <div className="text-4xl">📹</div>
+                                            <p className={`font-medium ${textColor}`}>
+                                                Drop your video here or click to browse
+                                            </p>
+                                            <p className={`text-sm ${mutedText}`}>
+                                                Supports: MP4, MOV, AVI, MKV (Max 500MB)
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Thumbnail Upload with Drag & Drop */}
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${textColor}`}>
+                                    Thumbnail *
+                                </label>
+                                <div
+                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                                        isDraggingThumbnail ? `${dragBorder} ${dragBg}` :
+                                        uploadData.thumbnailFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                                        `${inputBorder}`
+                                    }`}
+                                    onDragEnter={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingThumbnail(true);
+                                    }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingThumbnail(true);
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.preventDefault();
+                                        setIsDraggingThumbnail(false);
+                                    }}
+                                    onDrop={handleThumbnailDrop}
+                                    onClick={() => thumbnailInputRef.current?.click()}
+                                >
+                                    <input
+                                        ref={thumbnailInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0] || null;
+                                            handleThumbnailFileSelect(file);
+                                        }}
+                                        disabled={isLoading}
+                                    />
+                                    
+                                    {uploadData.thumbnailFile ? (
+                                        <div className="space-y-2">
+                                            <div className="text-4xl">✅</div>
+                                            <p className={`font-medium ${textColor}`}>
+                                                {uploadData.thumbnailFile.name}
+                                            </p>
+                                            <p className={`text-sm ${mutedText}`}>
+                                                {(uploadData.thumbnailFile.size / (1024 * 1024)).toFixed(2)} MB
+                                            </p>
+                                            {thumbnailPreview && (
+                                                <img 
+                                                    src={thumbnailPreview} 
+                                                    alt="Thumbnail preview"
+                                                    className="max-h-32 mx-auto rounded-lg mt-2 object-cover"
+                                                />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    removeThumbnailFile();
+                                                }}
+                                                className={`text-sm ${isLight ? 'text-red-600' : 'text-red-400'} hover:underline`}
+                                            >
+                                                Remove file
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <div className="text-4xl">🖼️</div>
+                                            <p className={`font-medium ${textColor}`}>
+                                                Drop your thumbnail here or click to browse
+                                            </p>
+                                            <p className={`text-sm ${mutedText}`}>
+                                                Supports: JPG, PNG, WEBP (Max 5MB)
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Progress Bar */}
                             {uploadProgress > 0 && (
                                 <div>
-                                    <div className={`w-full ${isLight ? 'bg-gray-200' : 'bg-gray-700'} rounded-full h-2`}>
+                                    <div className={`w-full ${isLight ? 'bg-gray-200' : 'bg-gray-700'} rounded-full h-2.5`}>
                                         <div
-                                            className={`${isLight ? 'bg-black' : 'bg-red-600'} h-2 rounded-full transition-all duration-300`}
+                                            className={`${isLight ? 'bg-black' : 'bg-red-600'} h-2.5 rounded-full transition-all duration-300`}
                                             style={{ width: `${uploadProgress}%` }}
                                         />
                                     </div>
@@ -720,6 +956,7 @@ const ChannelPage = () => {
                                 </div>
                             )}
 
+                            {/* Action Buttons */}
                             <div className="pt-4 flex gap-3">
                                 <button
                                     type="button"
@@ -728,10 +965,12 @@ const ChannelPage = () => {
                                         setUploadData({
                                             title: "",
                                             description: "",
-                                            videoUrl: "",
-                                            thumbnailUrl: "",
+                                            videoFile: null,
+                                            thumbnailFile: null,
                                             duration: 0,
                                         });
+                                        setVideoPreview(null);
+                                        setThumbnailPreview(null);
                                     }}
                                     className={`flex-1 px-4 py-2 ${buttonSecondary} ${buttonSecondaryText} rounded-lg font-semibold transition-colors`}
                                     disabled={isLoading}
@@ -740,7 +979,7 @@ const ChannelPage = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isLoading}
+                                    disabled={isLoading || !uploadData.videoFile || !uploadData.thumbnailFile}
                                     className={`flex-1 px-4 py-2 ${buttonPrimary} ${buttonPrimaryText} rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {isLoading ? "Uploading..." : "Upload Video"}

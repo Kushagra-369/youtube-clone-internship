@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import CommentsPage from "../comments/CommentsPage";
-import { likeVideo, dislikeVideo, } from "../../services/video.service";
-import {
-    downloadVideo,
-} from "../../services/download.service";
+import { likeVideo, dislikeVideo } from "../../services/video.service";
+import { downloadVideo } from "../../services/download.service";
 import { useParams, Link } from "react-router-dom";
-import {
-    getVideoById,
-    getVideos,
-} from "../../services/video.service";
+import { getVideoById, getVideos } from "../../services/video.service";
 import type { Video } from "../../types/video.types";
 import { getUserByEmail } from "../../services/user.service";
 import { getThemeByLocationAndTime } from "../utils/theme";
-
+import { useNavigate } from "react-router-dom";
 // Extend Video type to include optional fields
 interface ExtendedVideo extends Video {
     uploadDate?: string;
@@ -32,8 +27,8 @@ const PlayerPage = () => {
     const [suggestedLoading, setSuggestedLoading] = useState(true);
     const [videoError, setVideoError] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const [isLiked,] = useState(false);
-    const [isDisliked,] = useState(false);
+    const [isLiked, setIsLiked] = useState(false);
+    const [isDisliked, setIsDisliked] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [selectedQuality, setSelectedQuality] = useState("Auto");
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -42,24 +37,28 @@ const PlayerPage = () => {
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [watchTime, setWatchTime] = useState(0);
-    const videoRef = useRef<HTMLVideoElement>(null);
     const [watchLimitReached, setWatchLimitReached] = useState(false);
-    const [user, setUser] = useState<any>(
-        JSON.parse(
-            localStorage.getItem("user") || "null"
-        )
-    ); const watchTimeInterval =
-        useRef<ReturnType<typeof setInterval> | null>(null);
+    const [showControls, setShowControls] = useState(true);
+    const [tapCount, setTapCount] = useState(0);
+    const [tapTimeout, setTapTimeout] =
+        useState<ReturnType<typeof setTimeout> | null>(null);
+    const [lastTapTime, setLastTapTime] = useState(0);
+    const [tapPosition, setTapPosition] = useState<'center' | 'left' | 'right' | null>(null);
+    const [showSeekFeedback, setShowSeekFeedback] = useState<string | null>(null);
+    const [showComments, setShowComments] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const navigate = useNavigate();
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const watchTimeInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+    const controlsTimeout =
+        useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem("user") || "null"));
 
     useEffect(() => {
         const savedUser = localStorage.getItem("user");
-
         if (savedUser) {
             const parsedUser = JSON.parse(savedUser);
-
-            console.log("USER =", parsedUser);
-            console.log("WATCH PLAN =", parsedUser.watchPlan);
-
             setUser(parsedUser);
         }
     }, []);
@@ -82,15 +81,9 @@ const PlayerPage = () => {
     const mutedText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
     const buttonBg = isLight ? "bg-gray-200" : "bg-[#272727]";
     const buttonBgHover = isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]";
-    const subscribeBg = isSubscribed
-        ? (isLight ? "bg-gray-200" : "bg-[#272727]")
-        : (isLight ? "bg-black" : "bg-white");
-    const subscribeText = isSubscribed
-        ? (isLight ? "text-black" : "text-white")
-        : (isLight ? "text-white" : "text-black");
-    const subscribeHover = isSubscribed
-        ? (isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]")
-        : (isLight ? "hover:bg-gray-800" : "hover:bg-gray-200");
+    const subscribeBg = isSubscribed ? (isLight ? "bg-gray-200" : "bg-[#272727]") : (isLight ? "bg-black" : "bg-white");
+    const subscribeText = isSubscribed ? (isLight ? "text-black" : "text-white") : (isLight ? "text-white" : "text-black");
+    const subscribeHover = isSubscribed ? (isLight ? "hover:bg-gray-300" : "hover:bg-[#3a3a3a]") : (isLight ? "hover:bg-gray-800" : "hover:bg-gray-200");
     const spinnerBorder = isLight ? "border-gray-300" : "border-white";
     const spinnerAccent = isLight ? "border-t-gray-600" : "border-t-transparent";
     const overlayBg = isLight ? "bg-black/70" : "bg-black/80";
@@ -112,138 +105,224 @@ const PlayerPage = () => {
         alert("Please sign in to use this feature.");
     };
 
+    // Watch Timer Functions
     const startWatchTimer = () => {
-        console.log("🚀 TIMER STARTED");
-        console.log("👤 USER =", user);
-
-        if (watchTimeInterval.current) {
-            console.log("⚠️ Timer already running");
-            return;
-        }
+        if (watchTimeInterval.current) return;
 
         watchTimeInterval.current = setInterval(() => {
             setWatchTime((prev) => {
                 const newTime = prev + 1;
-
-                console.log("⏱️ Time =", newTime);
-                console.log("📦 Plan =", user?.watchPlan);
-
                 if (user) {
                     const limits: Record<string, number> = {
-                        free: 10,
-                        bronze: 15,
-                        silver: 20,
+                        free: 300,      // 5 min
+                        bronze: 420,    // 7 min
+                        silver: 600,    // 10 min
                         gold: Infinity,
                     };
+                    const limit = limits[user.watchPlan || "free"];
 
-                    const limit =
-                        limits[user.watchPlan || "free"];
-
-                    console.log("🎯 Limit =", limit);
-
-                    if (
-                        newTime >= limit &&
-                        limit !== Infinity
-                    ) {
-                        console.log("🛑 LIMIT REACHED");
-
+                    if (newTime >= limit && limit !== Infinity) {
                         setWatchLimitReached(true);
-
                         if (videoRef.current) {
-                            console.log("⏸️ Pausing video");
-
                             videoRef.current.pause();
-
                             setIsPlaying(false);
                         }
-
                         if (watchTimeInterval.current) {
-                            console.log("🧹 Clearing timer");
-
-                            clearInterval(
-                                watchTimeInterval.current
-                            );
-
+                            clearInterval(watchTimeInterval.current);
                             watchTimeInterval.current = null;
                         }
                     }
-                } else {
-                    console.log("❌ User not found");
                 }
-
                 return newTime;
             });
         }, 1000);
     };
 
     const stopWatchTimer = () => {
-        console.log("🛑 STOP TIMER CALLED");
-
         if (watchTimeInterval.current) {
             clearInterval(watchTimeInterval.current);
             watchTimeInterval.current = null;
-
-            console.log("🧹 TIMER CLEARED");
         }
     };
 
+    // Video Controls
     const togglePlay = () => {
-        console.log("TOGGLE CLICKED");
+        if (!videoRef.current) return;
 
-        if (!videoRef.current) {
-            console.log("NO VIDEO REF");
+        if (watchLimitReached) {
+            alert("Watch limit reached. Please upgrade your plan.");
             return;
         }
 
         if (isPlaying) {
-            console.log("PAUSE");
-
             videoRef.current.pause();
             setIsPlaying(false);
             stopWatchTimer();
         } else {
-            console.log("PLAY");
-            console.log("LIMIT =", watchLimitReached);
-
-            if (watchLimitReached) {
-                alert("Watch limit reached");
-                return;
-            }
-
             videoRef.current.play();
-
-            console.log("STARTING TIMER");
-
             setIsPlaying(true);
             startWatchTimer();
         }
     };
-    useEffect(() => {
-        console.log("PLAYER PAGE MOUNTED");
 
-        startWatchTimer();
+    const handleSeek = (seconds: number) => {
+        if (!videoRef.current) return;
+        const newTime = Math.max(0, Math.min(videoRef.current.duration, videoRef.current.currentTime + seconds));
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+        showSeekFeedbackText(seconds > 0 ? `⏩ +${seconds}s` : `⏪ ${seconds}s`);
+    };
 
-        return () => {
-            stopWatchTimer();
-        };
-    }, []);
-    // Clean up interval on unmount
-    useEffect(() => {
-        return () => {
-            stopWatchTimer();
-        };
-    }, []);
+    const showSeekFeedbackText = (text: string) => {
+        setShowSeekFeedback(text);
+        setTimeout(() => setShowSeekFeedback(null), 1000);
+    };
 
+    // Tap/Gesture Handling
+    const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
+        console.log("CLICK");
+        e.preventDefault();
+        const now = Date.now();
+        const timeSinceLastTap = now - lastTapTime;
+        console.log("TIME:", timeSinceLastTap);
+        setLastTapTime(now);
 
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const width = rect.width;
+        let position: 'center' | 'left' | 'right';
+
+        if (x < width / 3) position = 'left';
+        else if (x > (2 * width) / 3) position = 'right';
+        else position = 'center';
+
+        if (timeSinceLastTap > 1000 || (tapPosition && tapPosition !== position)) {
+            setTapCount(0);
+        }
+
+        const newTapCount = tapCount + 1;
+
+        console.log(
+            "tapCount:",
+            tapCount,
+            "newTapCount:",
+            newTapCount
+        );
+        setTapCount(newTapCount);
+        setTapPosition(position);
+
+        if (tapTimeout) {
+            clearTimeout(tapTimeout);
+            setTapTimeout(null);
+        }
+
+        // Handle based on tap count and position
+        if (newTapCount === 1) {
+            // Single tap - check if center for play/pause
+            if (position === 'center') {
+                const timeout = setTimeout(() => {
+                    togglePlay();
+                    setTapCount(0);
+                    setTapPosition(null);
+                }, 400);
+                setTapTimeout(timeout);
+            } else {
+                // Single tap on sides - show controls
+                setShowControls(true);
+                const timeout = setTimeout(() => {
+                    setTapCount(0);
+                    setTapPosition(null);
+                }, 800);
+                setTapTimeout(timeout);
+            }
+        } else if (newTapCount === 2) {
+
+            if (tapTimeout) {
+                clearTimeout(tapTimeout);
+                setTapTimeout(null);
+            }
+
+            if (position === "left") {
+                handleSeek(-10);
+            }
+            else if (position === "right") {
+                handleSeek(10);
+            }
+            else {
+                togglePlay();
+            }
+
+            // Triple tap ke liye wait karo
+            const timeout = setTimeout(() => {
+                setTapCount(0);
+                setTapPosition(null);
+            }, 500);
+
+            setTapTimeout(timeout);
+        } else if (newTapCount >= 3) {
+            setTapCount(0);
+            setTapPosition(null);
+            // Triple tap
+            console.log("TRIPLE TAP DETECTED", position);
+            if (tapTimeout) {
+                clearTimeout(tapTimeout);
+                setTapTimeout(null);
+            }
+
+            if (position === "center") {
+
+                console.log(
+                    "NEXT VIDEO:",
+                    suggestedVideos[0]?._id
+                );
+
+                if (suggestedVideos.length > 0) {
+                    navigate(
+                        `/video/${suggestedVideos[0]._id}`
+                    );
+                }
+
+                showSeekFeedbackText(
+                    "⏭️ Next Video"
+                );
+            } else if (position === 'left') {
+                // Triple tap left - toggle comments
+                setShowComments(!showComments);
+                showSeekFeedbackText(showComments ? '💬 Comments Closed' : '💬 Comments Opened');
+            } else if (position === 'right') {
+                // Triple tap right - close website
+                showSeekFeedbackText('👋 Goodbye!');
+                setTimeout(() => {
+                    window.close();
+                    // Fallback
+                    window.location.href = '/';
+                }, 500);
+            }
+            setTapCount(0);
+            setTapPosition(null);
+        }
+    };
+
+    // Auto-hide controls
+    const handleMouseMove = () => {
+        setShowControls(true);
+        if (controlsTimeout.current) {
+            clearTimeout(controlsTimeout.current);
+        }
+        controlsTimeout.current = setTimeout(() => {
+            if (isPlaying) {
+                setShowControls(false);
+            }
+        }, 3000);
+    };
+
+    // Fetch video and suggestions
     const fetchVideo = async () => {
         try {
             setLoading(true);
-
             setWatchTime(0);
             setWatchLimitReached(false);
-
             const response = await getVideoById(id!);
-
             setVideo(response.data);
         } catch (error) {
             console.error(error);
@@ -277,6 +356,19 @@ const PlayerPage = () => {
         }
     }, [playbackSpeed]);
 
+    // Cleanup
+    useEffect(() => {
+        return () => {
+            stopWatchTimer();
+            if (controlsTimeout.current) {
+                clearTimeout(controlsTimeout.current);
+            }
+            if (tapTimeout) {
+                clearTimeout(tapTimeout);
+            }
+        };
+    }, []);
+
     const handleQualityChange = (quality: string) => {
         setSelectedQuality(quality);
         if (quality !== "Auto" && videoRef.current) {
@@ -296,7 +388,6 @@ const PlayerPage = () => {
         const now = new Date();
         const diffTime = Math.abs(now.getTime() - uploadedDate.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
         if (diffDays === 0) return "Today";
         if (diffDays === 1) return "Yesterday";
         if (diffDays < 7) return `${diffDays} days ago`;
@@ -310,6 +401,7 @@ const PlayerPage = () => {
             if (!user || !video) return;
             const response = await likeVideo(video._id, user.email);
             setVideo(response.data);
+            setIsLiked(!isLiked);
         } catch (error) {
             console.error(error);
         }
@@ -320,6 +412,7 @@ const PlayerPage = () => {
             if (!user || !video) return;
             const response = await dislikeVideo(video._id, user.email);
             setVideo(response.data);
+            setIsDisliked(!isDisliked);
         } catch (error) {
             console.error(error);
         }
@@ -327,7 +420,6 @@ const PlayerPage = () => {
 
     const toggleFullscreen = () => {
         if (!videoRef.current) return;
-
         if (!isFullscreen) {
             videoRef.current.requestFullscreen();
             setIsFullscreen(true);
@@ -339,10 +431,6 @@ const PlayerPage = () => {
 
     const handleDownload = async () => {
         try {
-            console.log("USER =", user);
-            console.log("USER_ID =", user?._id);
-            console.log("VIDEO_ID =", video?._id);
-
             const userResponse = await getUserByEmail(user.email);
             const userId = userResponse.data._id;
             const response = await downloadVideo(userId, video!._id);
@@ -356,16 +444,53 @@ const PlayerPage = () => {
         const handleFullscreenChange = () => {
             setIsFullscreen(!!document.fullscreenElement);
         };
-
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
-    // Format watch time for display
     const formatWatchTime = (seconds: number): string => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatDuration = (seconds: number): string => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Get watch limit for display
+    const getWatchLimitDisplay = () => {
+        if (!user) return null;
+        const limits: Record<string, number> = {
+            free: 300,
+            bronze: 420,
+            silver: 600,
+            gold: Infinity,
+        };
+        const limit = limits[user.watchPlan || "free"];
+        if (limit === Infinity) return "Unlimited";
+        return formatWatchTime(limit);
+    };
+
+    // Handle video progress
+    const handleTimeUpdate = () => {
+        if (videoRef.current) {
+            setCurrentTime(videoRef.current.currentTime);
+            setDuration(videoRef.current.duration);
+        }
+    };
+
+    // Handle progress bar click
+    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (videoRef.current) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = x / rect.width;
+            videoRef.current.currentTime = percentage * videoRef.current.duration;
+            setCurrentTime(videoRef.current.currentTime);
+        }
     };
 
     if (loading) {
@@ -388,20 +513,6 @@ const PlayerPage = () => {
     const isYoutube = videoUrl?.includes("youtube.com") || videoUrl?.includes("youtu.be");
     const youtubeId = isYoutube && videoUrl ? videoUrl.split("/").pop()?.split("?")[0] : null;
 
-    // Get watch limit for display
-    const getWatchLimitDisplay = () => {
-        if (!user) return null;
-        const limits: Record<string, number> = {
-            free: 300,
-            bronze: 420,
-            silver: 600,
-            gold: Infinity,
-        };
-        const limit = limits[user.watchPlan || "free"];
-        if (limit === Infinity) return "Unlimited";
-        return formatWatchTime(limit);
-    };
-
     return (
         <div className={`min-h-screen ${bgColor}`}>
             <main className="pt-14">
@@ -410,7 +521,12 @@ const PlayerPage = () => {
                         {/* Left Column - Video Player */}
                         <div className="flex-1">
                             {/* Video Player */}
-                            <div className="relative bg-black rounded-xl overflow-hidden">
+                            <div
+                                className="relative bg-black rounded-xl overflow-hidden"
+                                onMouseMove={handleMouseMove}
+                                onMouseLeave={() => setShowControls(false)}
+                                onClick={handleTap}
+                            >
                                 {isYoutube ? (
                                     <iframe
                                         className="w-full aspect-video"
@@ -432,30 +548,21 @@ const PlayerPage = () => {
                                 ) : (
                                     <>
                                         <video
-                                            onClick={() => {
-                                                console.log("VIDEO CLICKED");
-                                            }}
-                                            autoPlay
                                             ref={videoRef}
                                             key={videoUrl}
-                                            controls={false}
+                                            src={videoUrl}
+                                            className="w-full aspect-video"
+                                            preload="metadata"
+                                            onTimeUpdate={handleTimeUpdate}
                                             onLoadedMetadata={() => {
-                                                console.log("VIDEO LOADED");
+                                                if (videoRef.current) {
+                                                    setDuration(videoRef.current.duration);
+                                                }
                                             }}
-
-                                            onCanPlay={() => {
-                                                console.log("VIDEO CAN PLAY");
-                                            }}
-
                                             onPlay={() => {
-                                                console.log("VIDEO PLAY EVENT");
                                                 setIsPlaying(true);
                                                 startWatchTimer();
                                             }}
-                                            className="w-full aspect-video"
-                                            preload="metadata"
-                                            onError={() => setVideoError(true)}
-
                                             onPause={() => {
                                                 setIsPlaying(false);
                                                 stopWatchTimer();
@@ -464,21 +571,57 @@ const PlayerPage = () => {
                                                 setIsPlaying(false);
                                                 stopWatchTimer();
                                             }}
-                                        >
-                                            <source src={videoUrl} type="video/mp4" />
-                                        </video>
+                                            onError={() => setVideoError(true)}
+                                            playsInline
+                                        />
+
+                                        {/* Gesture Feedback */}
+                                        {showSeekFeedback && (
+                                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/70 text-white text-4xl md:text-5xl font-bold px-6 py-4 rounded-xl pointer-events-none z-20 animate-fade-in-out">
+                                                {showSeekFeedback}
+                                            </div>
+                                        )}
+
+                                        {/* Tap Indicator */}
+                                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10">
+                                            {tapCount === 1 && <div className="text-white text-6xl opacity-50">●</div>}
+                                            {tapCount === 2 && <div className="text-white text-6xl opacity-50">●●</div>}
+                                            {tapCount >= 3 && <div className="text-white text-6xl opacity-50">●●●</div>}
+                                        </div>
 
                                         {/* Watch Time Indicator */}
                                         {user && user.watchPlan !== "gold" && (
-                                            <div className="absolute top-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full">
+                                            <div className="absolute top-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full z-10">
                                                 ⏱ {formatWatchTime(watchTime)} / {getWatchLimitDisplay()}
                                             </div>
                                         )}
 
+                                        {/* Gesture Hints */}
+                                        <div className={`absolute bottom-20 left-1/2 transform -translate-x-1/2 text-white/50 text-xs text-center transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} pointer-events-none z-10`}>
+                                            <div className="bg-black/50 px-4 py-2 rounded-lg backdrop-blur-sm">
+                                                Tap center: Play/Pause | Double-tap left/right: +/-10s | Triple tap: Next/Close/Comments
+                                            </div>
+                                        </div>
+
                                         {/* Custom Video Controls */}
-                                        <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                                        <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} z-10`}>
+                                            {/* Progress Bar */}
+                                            <div
+                                                className="relative w-full h-1 bg-gray-600 rounded-full cursor-pointer mb-3"
+                                                onClick={handleProgressClick}
+                                            >
+                                                <div
+                                                    className="absolute top-0 left-0 h-full bg-red-600 rounded-full transition-all"
+                                                    style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                                                />
+                                                <div
+                                                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-600 rounded-full"
+                                                    style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%`, transform: 'translate(-50%, -50%)' }}
+                                                />
+                                            </div>
+
                                             <div className="flex items-center gap-4">
-                                                <button onClick={togglePlay} className="text-white hover:text-gray-300">
+                                                <button onClick={togglePlay} className="text-white hover:text-gray-300 transition-colors">
                                                     {isPlaying ? (
                                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
@@ -489,28 +632,34 @@ const PlayerPage = () => {
                                                         </svg>
                                                     )}
                                                 </button>
-                                                <button onClick={() => {
-                                                    if (videoRef.current) {
-                                                        if (isMuted) {
-                                                            videoRef.current.muted = false;
-                                                            setIsMuted(false);
-                                                        } else {
-                                                            videoRef.current.muted = true;
-                                                            setIsMuted(true);
+
+                                                <span className="text-white text-sm">
+                                                    {formatDuration(currentTime)} / {formatDuration(duration)}
+                                                </span>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (videoRef.current) {
+                                                            videoRef.current.muted = !isMuted;
+                                                            setIsMuted(!isMuted);
                                                         }
-                                                    }
-                                                }} className="text-white hover:text-gray-300">
+                                                    }}
+                                                    className="text-white hover:text-gray-300 transition-colors"
+                                                >
                                                     {isMuted ? (
                                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                                             <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM9 6.17L3.06 10.1 1 8.04 5.04 4 1.06 0 0 1.06l13 13L12.94 15l-4-4v5.5L6 14l-3 2V8h.17L2 9.06v6.88l2-1.33 2 1.33V14.9l-1.21 1.21L2 16.09v3.47l3-2 2 1.33v-5.5l4 4v5.5l-2-1.33-2 1.33V20.9l3-2 2 1.33v-3.47l-1.21-1.21L9 14.9v-5.5L4.1 5.17 9 3.17v3z" />
                                                         </svg>
                                                     ) : (
                                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                                                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77z" />
                                                         </svg>
                                                     )}
                                                 </button>
-                                                <button onClick={toggleFullscreen} className="text-white hover:text-gray-300 ml-auto">
+
+                                                <div className="flex-1" />
+
+                                                <button onClick={toggleFullscreen} className="text-white hover:text-gray-300 transition-colors">
                                                     <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                                         <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
                                                     </svg>
@@ -565,8 +714,7 @@ const PlayerPage = () => {
                                                 }
                                                 handleLike();
                                             }}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isLiked ? "bg-blue-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`
-                                                }`}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isLiked ? "bg-blue-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`}`}
                                         >
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
@@ -582,8 +730,7 @@ const PlayerPage = () => {
                                                 }
                                                 handleDislike();
                                             }}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isDisliked ? "bg-red-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`
-                                                }`}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-full transition ${isDisliked ? "bg-red-600 text-white" : `${buttonBg} ${textColor} ${buttonBgHover}`}`}
                                         >
                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
@@ -598,7 +745,7 @@ const PlayerPage = () => {
                                             <span className={`${textColor} text-sm`}>Share</span>
                                         </button>
 
-                                        {/* Download Button with Menu */}
+                                        {/* Download Button */}
                                         <div className="relative">
                                             <button
                                                 onClick={() => setShowDownloadMenu(!showDownloadMenu)}
@@ -712,29 +859,32 @@ const PlayerPage = () => {
                                 </div>
 
                                 {/* Comments Section */}
-                                {isLoggedIn ? (
-                                    <CommentsPage videoId={id} />
-                                ) : (
-                                    <div className={`${cardBg} rounded-xl p-6 mt-6`}>
-                                        <h3 className={`${textColor} text-lg font-semibold`}>
-                                            Sign in to comment
-                                        </h3>
-                                        <p className={`${mutedText} mt-2`}>
-                                            Join the conversation, comment on videos,
-                                            and interact with creators.
-                                        </p>
-                                        <button
-                                            onClick={requireLogin}
-                                            className="mt-4 px-5 py-2 bg-[#3ea6ff] text-black rounded-full font-medium hover:bg-[#65b8ff]"
-                                        >
-                                            Sign In
-                                        </button>
+                                {showComments && (
+                                    <div className="mt-4">
+                                        {isLoggedIn ? (
+                                            <CommentsPage videoId={id} />
+                                        ) : (
+                                            <div className={`${cardBg} rounded-xl p-6`}>
+                                                <h3 className={`${textColor} text-lg font-semibold`}>
+                                                    Sign in to comment
+                                                </h3>
+                                                <p className={`${mutedText} mt-2`}>
+                                                    Join the conversation, comment on videos, and interact with creators.
+                                                </p>
+                                                <button
+                                                    onClick={requireLogin}
+                                                    className="mt-4 px-5 py-2 bg-[#3ea6ff] text-black rounded-full font-medium hover:bg-[#65b8ff]"
+                                                >
+                                                    Sign In
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* Right Column - Suggested Videos from Database */}
+                        {/* Right Column - Suggested Videos */}
                         <div className="lg:w-100">
                             <div className="space-y-3">
                                 <h3 className={`${textColor} font-semibold mb-3`}>Suggested Videos</h3>
@@ -784,6 +934,7 @@ const PlayerPage = () => {
                 </div>
             </main>
 
+            {/* Watch Limit Reached Modal */}
             {watchLimitReached && (
                 <div className={`fixed inset-0 ${overlayBg} flex items-center justify-center z-50`}>
                     <div className={`${modalBg} p-6 rounded-xl w-100 text-center`}>
@@ -801,11 +952,23 @@ const PlayerPage = () => {
                                     Upgrade Plan
                                 </button>
                             </Link>
-                         
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* Add custom CSS for animations */}
+            <style>{`
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                    20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                    80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                }
+                .animate-fade-in-out {
+                    animation: fadeInOut 1s ease-in-out forwards;
+                }
+            `}</style>
         </div>
     );
 };

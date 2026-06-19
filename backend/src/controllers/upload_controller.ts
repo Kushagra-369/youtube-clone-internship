@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../config/cloudinary";
 
 export const uploadVideo = async (
   req: Request,
@@ -38,4 +38,28 @@ export const uploadVideo = async (
       message: "Upload failed",
     });
   }
+};
+
+export const uploadImage =async (
+ req: Request,
+ res: Response
+) => {
+
+ const file =
+   (req as any).file;
+
+ const result =
+  await cloudinary.uploader.upload(
+   file.path,
+   {
+    resource_type:
+      "image",
+   }
+  );
+
+ res.json({
+   success: true,
+   imageUrl:
+    result.secure_url,
+ });
 };

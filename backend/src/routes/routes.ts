@@ -6,7 +6,7 @@ import {createVideo,getVideos,getVideoById,incrementViews, likeVideo,dislikeVide
 import {createUser,getUsers,getUserById,upgradeToPremium, getUserByEmail,upgradeWatchPlan,validateUser, sendEmailOTP,verifyEmailOTP,updatePhoneNumber,sendPhoneOTP,verifyPhoneOTP} from "../controllers/user_controller";
 import {createChannel,getChannelByOwner,subscribeChannel,unsubscribeChannel} from "../controllers/channel_controller"
 import multer from "multer";
-import { uploadVideo } from "../controllers/upload_controller";
+import { uploadVideo,uploadImage } from "../controllers/upload_controller";
 const router = express.Router();
 const upload = multer({
   dest: "uploads/",
@@ -50,4 +50,5 @@ router.post("/channel/:channelId/unsubscribe",unsubscribeChannel);
 
 
 router.post("/upload-video",upload.single("video"),uploadVideo);
+router.post("/upload-image",upload.single("image"),uploadImage);
 export default router;
