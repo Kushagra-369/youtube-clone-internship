@@ -52,20 +52,43 @@ export const getUsers = async (
   res: Response
 ): Promise<void> => {
   try {
-    const users = await User.find().sort({
-      createdAt: -1,
-    });
+    const { excludeUserId } = req.query; // Current user ID to exclude
+    
+    // Build query
+    const query: any = {};
+    if (excludeUserId) {
+      query._id = { $ne: excludeUserId };
+    }
+
+    // Get users with pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select("-password -__v -createdAt -updatedAt") // Exclude sensitive fields
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      User.countDocuments(query),
+    ]);
 
     res.status(200).json({
       success: true,
       data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error(error);
-
+    console.error("Error fetching users:", error);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error",
+      message: "Failed to fetch users",
     });
   }
 };
