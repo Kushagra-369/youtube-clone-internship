@@ -4,7 +4,9 @@ import type { Video } from "../../types/video.types";
 import VideoCard from "../video/VideoCard";
 import { getThemeByLocationAndTime } from "../utils/theme";
 
+
 const HomePage = () => {
+
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(

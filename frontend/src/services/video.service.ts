@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { Video } from "../types/video.types";
+import { API_URL } from "../config/api";
 
-const API_URL = "http://localhost:1928";
 
 // Make sure getVideos is exported in your video.service.ts
 export const getVideos = async () => {

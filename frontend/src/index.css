@@ -21,3 +21,9 @@
     background-color: #f3f4f6 !important;
     border-color: #9ca3af !important;
 }
+/* For extra small screens */
+@media (min-width: 480px) {
+    .xs\:inline {
+        display: inline;
+    }
+}

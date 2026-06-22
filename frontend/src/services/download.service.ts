@@ -1,6 +1,5 @@
 import axios from "axios";
-
-const API_URL = "http://localhost:1928";
+import { API_URL } from "../config/api";
 
 export const downloadVideo = async (
   userId: string,
