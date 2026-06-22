@@ -7,6 +7,7 @@ import DownloadsPage from "../components/downloads/DownloadsPage";
 import SubscriptionPage from "../components/subscription/SubscriptionPage";
 import Watchplan from "../components/watchplan/watchplan";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
+import Talk_to_friends from "../components/friends/talk_to_friends";
 const AppRoutes = () => {
   return (
     <Routes>
@@ -45,6 +46,8 @@ const AppRoutes = () => {
       />
       <Route path="/premium" element={<SubscriptionPage />} />
       <Route path="/watch-plans" element={<Watchplan />} />
+      <Route path="/friends" element={<Talk_to_friends />} />
+
     </Routes>
   );
 };

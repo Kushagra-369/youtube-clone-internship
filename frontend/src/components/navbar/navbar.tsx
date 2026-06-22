@@ -118,6 +118,7 @@ const Navbar = () => {
     const searchBtnText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
     const logoText = isLight ? "text-black" : "text-white";
     const watchPlansBtn = isLight ? "text-yellow-600 hover:bg-gray-200" : "text-yellow-400 hover:bg-[#272727]";
+    const friendsbutton = isLight ? "text-green-300 hover:bg-blue-800 " : "text-green-300 hover:bg-blue-800"
     const premiumBtn = isLight ? "text-blue-600 hover:bg-gray-200" : "text-[#3ea6ff] hover:bg-[#272727]";
     const downloadsBtn = isLight ? "text-black hover:bg-gray-200" : "text-white hover:bg-[#272727]";
     const dropdownBg = isLight ? "bg-white" : "bg-[#0f0f0f]";
@@ -238,6 +239,15 @@ const Navbar = () => {
 
                     {/* Right Section - Desktop Navigation */}
                     <div className="flex items-center gap-1 sm:gap-2">
+                        <Link to="/friends" className="hidden sm:block">
+                            <button
+                                className={`px-2 sm:px-3 md:px-4 py-1 text-xs sm:text-sm font-medium rounded-full transition ${friendsbutton}`}
+                            >
+                                Friends
+                            </button>
+                        </Link>
+
+
                         {/* Watch Plans - Hidden on small mobile */}
                         <Link to="/watch-plans" className="hidden sm:block">
                             <button
@@ -342,13 +352,13 @@ const Navbar = () => {
                 {showMobileMenu && (
                     <div className="md:hidden fixed inset-0 z-50">
                         {/* Overlay */}
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/50"
                             onClick={() => setShowMobileMenu(false)}
                         />
-                        
+
                         {/* Menu */}
-                        <div 
+                        <div
                             ref={mobileMenuRef}
                             className={`absolute top-0 left-0 h-full w-72 ${mobileMenuBg} ${textColor} shadow-2xl transform transition-transform duration-300`}
                             style={{ transform: showMobileMenu ? 'translateX(0)' : 'translateX(-100%)' }}
