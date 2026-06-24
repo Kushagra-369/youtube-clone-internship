@@ -59,6 +59,9 @@ export default function TalkToFriends() {
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const isCallEndedRef = useRef<boolean>(false);
   const currentRoomRef = useRef<string | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const isReconnectingRef = useRef<boolean>(false);
 
   // Get current user from localStorage
   useEffect(() => {
@@ -68,10 +71,8 @@ export default function TalkToFriends() {
     }
     fetchUsers();
 
-    // Handle page refresh/close
     const handleBeforeUnload = () => {
       if (callState.isInCall || callState.isCalling) {
-        // Emit end call before page unloads
         if (callState.calleeId) {
           socket.emit("end-call", {
             to: callState.calleeId,
@@ -98,10 +99,8 @@ export default function TalkToFriends() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Connect socket
     socket.emit("user-online", currentUser._id);
 
-    // Listen for online users
     socket.on("user-online", (userId: string) => {
       setUsers(prev =>
         prev.map(u =>
@@ -118,7 +117,6 @@ export default function TalkToFriends() {
       );
     });
 
-    // Incoming call
     socket.on("incoming-call", (data: { from: string; fromName: string; type: "voice" | "video" }) => {
       setIncomingCall(data);
       setCallerName(data.fromName);
@@ -126,7 +124,6 @@ export default function TalkToFriends() {
       setIsCaller(false);
     });
 
-    // Call accepted
     socket.on("call-accepted", (data: { from: string }) => {
       setCallState(prev => ({
         ...prev,
@@ -136,14 +133,12 @@ export default function TalkToFriends() {
       }));
     });
 
-    // Call rejected
     socket.on("call-rejected", () => {
       setCallState(prev => ({ ...prev, isCalling: false, callStatus: "idle" }));
       cleanupCall();
       alert("Call rejected");
     });
 
-    // Call ended
     socket.on("call-ended", () => {
       cleanupCall();
     });
@@ -186,36 +181,40 @@ export default function TalkToFriends() {
     }
   };
 
-  // Cleanup function
   const cleanupCall = () => {
     isCallEndedRef.current = true;
     currentRoomRef.current = null;
 
-    // Close peer connection
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
 
-    // Stop local stream
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(track => track.stop());
+      cameraStreamRef.current = null;
+    }
+
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
 
-    // Stop remote stream
     if (remoteStreamRef.current) {
       remoteStreamRef.current.getTracks().forEach(track => track.stop());
       remoteStreamRef.current = null;
     }
 
-    // Stop recording
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
     }
 
-    // Clear video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
@@ -238,14 +237,24 @@ export default function TalkToFriends() {
     setIncomingCall(null);
   };
 
-  // Start local stream
   const startLocalStream = async (video: boolean) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: video,
+        video: video ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        } : false,
       });
+
       localStreamRef.current = stream;
+
+      // Store camera stream separately for camera toggle
+      if (video) {
+        cameraStreamRef.current = stream;
+      }
+
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
@@ -257,7 +266,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Start call
   const startCall = async (userId: string, type: "voice" | "video") => {
     try {
       isCallEndedRef.current = false;
@@ -275,13 +283,12 @@ export default function TalkToFriends() {
         callerId: currentUser?._id || null,
         calleeId: userId,
         isMuted: false,
-        isCameraOn: true,
+        isCameraOn: type === "video",
         isScreenSharing: false,
         isRecording: false,
         callStatus: "dialing",
       });
 
-      // Emit call request
       socket.emit("call-user", {
         from: currentUser?._id,
         to: userId,
@@ -289,7 +296,6 @@ export default function TalkToFriends() {
         fromName: currentUser?.name,
       });
 
-      // Create peer connection
       await createPeerConnection(stream, userId, true);
 
     } catch (error) {
@@ -298,7 +304,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Accept incoming call
   const acceptCall = async () => {
     if (!incomingCall) return;
 
@@ -314,7 +319,7 @@ export default function TalkToFriends() {
         callerId: incomingCall.from,
         calleeId: currentUser?._id || null,
         isMuted: false,
-        isCameraOn: true,
+        isCameraOn: incomingCall.type === "video",
         isScreenSharing: false,
         isRecording: false,
         callStatus: "connected",
@@ -333,7 +338,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Reject incoming call
   const rejectCall = () => {
     if (!incomingCall) return;
     socket.emit("reject-call", {
@@ -344,41 +348,34 @@ export default function TalkToFriends() {
     setCallState(prev => ({ ...prev, callStatus: "idle" }));
   };
 
-  // Create peer connection
   const createPeerConnection = async (stream: MediaStream, remoteUserId: string, isCaller: boolean) => {
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" },
       ],
+      iceCandidatePoolSize: 10,
     });
     peerConnectionRef.current = pc;
 
-    // Add local tracks
+    // Add all tracks from local stream
     stream.getTracks().forEach(track => {
       pc.addTrack(track, stream);
     });
 
     // Handle remote stream
     pc.ontrack = (event) => {
-
-      console.log(
-        "REMOTE TRACK RECEIVED",
-        event.track.kind
-      );
+      console.log("Remote track received:", event.track.kind);
 
       if (!remoteStreamRef.current) {
-        remoteStreamRef.current =
-          new MediaStream();
+        remoteStreamRef.current = new MediaStream();
       }
 
-      remoteStreamRef.current.addTrack(
-        event.track
-      );
+      remoteStreamRef.current.addTrack(event.track);
 
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject =
-          remoteStreamRef.current;
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
       }
     };
 
@@ -392,31 +389,46 @@ export default function TalkToFriends() {
       }
     };
 
-    // Handle connection state
     pc.oniceconnectionstatechange = () => {
+      console.log("ICE Connection State:", pc.iceConnectionState);
+
       if (pc.iceConnectionState === "disconnected" ||
-        pc.iceConnectionState === "failed" ||
-        pc.iceConnectionState === "closed") {
+        pc.iceConnectionState === "failed") {
+        // Try to reconnect
+        if (!isCallEndedRef.current && !isReconnectingRef.current) {
+          isReconnectingRef.current = true;
+          console.log("Attempting to reconnect...");
+
+          // Recreate offer/answer for reconnection
+          setTimeout(async () => {
+            try {
+              if (isCaller && peerConnectionRef.current) {
+                const offer = await peerConnectionRef.current.createOffer();
+                await peerConnectionRef.current.setLocalDescription(offer);
+                socket.emit("offer", {
+                  to: remoteUserId,
+                  offer,
+                });
+              }
+              isReconnectingRef.current = false;
+            } catch (error) {
+              console.error("Reconnection failed:", error);
+              isReconnectingRef.current = false;
+            }
+          }, 2000);
+        }
+      }
+
+      if (pc.iceConnectionState === "closed") {
         if (!isCallEndedRef.current) {
-          // Notify other party about disconnection
-          if (callState.calleeId) {
-            socket.emit("end-call", {
-              to: callState.calleeId,
-            });
-          }
-          if (callState.callerId && !isCaller) {
-            socket.emit("end-call", {
-              to: callState.callerId,
-            });
-          }
           cleanupCall();
         }
       }
     };
 
-    // Handle negotiation needed
     pc.onnegotiationneeded = async () => {
-      if (isCaller && !isCallEndedRef.current) {
+      console.log("Negotiation needed");
+      if (!isCallEndedRef.current && !isReconnectingRef.current) {
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
@@ -430,7 +442,7 @@ export default function TalkToFriends() {
       }
     };
 
-    // Create offer if caller
+    // If caller, create initial offer
     if (isCaller) {
       try {
         const offer = await pc.createOffer();
@@ -445,7 +457,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Handle offer
   const handleOffer = async (data: { offer: RTCSessionDescriptionInit; from: string }) => {
     if (isCallEndedRef.current) return;
 
@@ -473,7 +484,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Handle answer
   const handleAnswer = async (data: { answer: RTCSessionDescriptionInit; from: string }) => {
     if (isCallEndedRef.current) return;
 
@@ -487,7 +497,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Handle ICE candidate
   const handleIceCandidate = async (data: { candidate: RTCIceCandidateInit; from: string }) => {
     if (isCallEndedRef.current) return;
 
@@ -501,7 +510,6 @@ export default function TalkToFriends() {
     }
   };
 
-  // Toggle mute
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -512,161 +520,169 @@ export default function TalkToFriends() {
     }
   };
 
-  // Toggle camera
   const toggleCamera = async () => {
-    if (!localStreamRef.current) return;
+    if (!peerConnectionRef.current) return;
 
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    try {
+      if (callState.isCameraOn) {
+        // Turn off camera - find and disable video tracks
+        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+        if (videoSender && videoSender.track) {
+          videoSender.track.enabled = false;
+          // Remove track from local stream
+          if (localStreamRef.current) {
+            const videoTrack = localStreamRef.current.getVideoTracks()[0];
+            if (videoTrack) {
+              localStreamRef.current.removeTrack(videoTrack);
+            }
+          }
+        }
+        setCallState(prev => ({ ...prev, isCameraOn: false }));
+      } else {
+        // Turn on camera - create new video stream
+        const newCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
 
-    if (!videoTrack) {
-      try {
-        const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const newVideoTrack = cameraStream.getVideoTracks()[0];
-        localStreamRef.current.addTrack(newVideoTrack);
+        const newVideoTrack = newCameraStream.getVideoTracks()[0];
+        cameraStreamRef.current = newCameraStream;
 
-        const sender = peerConnectionRef.current?.getSenders().find(s => s.track?.kind === "video");
-        if (sender) {
-          sender.replaceTrack(newVideoTrack);
-        } else {
-          peerConnectionRef.current?.addTrack(newVideoTrack, localStreamRef.current);
+        // Add track to local stream
+        if (localStreamRef.current) {
+          localStreamRef.current.addTrack(newVideoTrack);
         }
 
-        if (localVideoRef.current) {
+        // Replace or add video sender
+        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack);
+        } else if (localStreamRef.current) {
+          peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
+        }
+
+        // Update local video
+        if (localVideoRef.current && localStreamRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
         }
 
         setCallState(prev => ({ ...prev, isCameraOn: true }));
-      } catch (error) {
-        console.error("Error enabling camera:", error);
       }
-      return;
+    } catch (error) {
+      console.error("Error toggling camera:", error);
+      alert("Failed to toggle camera. Please check camera permissions.");
     }
-
-    videoTrack.enabled = !videoTrack.enabled;
-    setCallState(prev => ({ ...prev, isCameraOn: !prev.isCameraOn }));
   };
 
-  // Toggle screen share
-  // Toggle screen share - FIXED VERSION
   const toggleScreenShare = async () => {
-    if (callState.isScreenSharing) {
-      // Stop screen sharing
-      const sender = peerConnectionRef.current?.getSenders().find(s => s.track?.kind === "video");
-      if (sender && localStreamRef.current) {
-        // Get the camera track from local stream
-        const cameraTrack = localStreamRef.current.getVideoTracks().find(t => t.kind === "video");
-        if (cameraTrack) {
-          sender.replaceTrack(cameraTrack);
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-          }
-        }
-      }
-      setCallState(prev => ({ ...prev, isScreenSharing: false }));
-      return;
-    }
+    if (!peerConnectionRef.current) return;
 
     try {
-      const screenStream =
-        await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        });
+      if (callState.isScreenSharing) {
+        // Stop screen sharing
+        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach(track => track.stop());
+          screenStreamRef.current = null;
+        }
+
+        // Restore camera if it was on
+        if (callState.isCameraOn && cameraStreamRef.current) {
+          const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
+          if (cameraTrack && videoSender) {
+            await videoSender.replaceTrack(cameraTrack);
+            // Update local stream
+            if (localStreamRef.current) {
+              // Remove screen track
+              const screenTrack = localStreamRef.current.getVideoTracks()[0];
+              if (screenTrack) {
+                localStreamRef.current.removeTrack(screenTrack);
+              }
+              // Add camera track
+              localStreamRef.current.addTrack(cameraTrack);
+            }
+          }
+        } else if (videoSender) {
+          await videoSender.replaceTrack(null);
+        }
+
+        // Restore camera preview
+        if (localVideoRef.current && localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+
+        setCallState(prev => ({ ...prev, isScreenSharing: false }));
+        return;
+      }
+
+      // Start screen sharing
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+
+      screenStreamRef.current = screenStream;
       const screenTrack = screenStream.getVideoTracks()[0];
 
-      if (!screenTrack) return;
+      // Find video sender
+      const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
 
-      // Store the current camera track to restore later
-      // const cameraTrack = localStreamRef.current?.getVideoTracks().find(t => t.kind === "video");
+      // Keep audio tracks from local stream
+      const audioTracks = localStreamRef.current?.getAudioTracks() || [];
 
-      // Create a new stream with only the screen track for sending
-      const screenOnlyStream = new MediaStream();
-      screenOnlyStream.addTrack(screenTrack);
-
-      // Also add audio tracks to the new stream if they exist
+      // Update local stream
       if (localStreamRef.current) {
-        const audioTracks = localStreamRef.current.getAudioTracks();
-        audioTracks.forEach(track => {
-          screenOnlyStream.addTrack(track);
-        });
+        // Remove video track if exists
+        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldVideoTrack) {
+          localStreamRef.current.removeTrack(oldVideoTrack);
+        }
+        // Add screen track
+        localStreamRef.current.addTrack(screenTrack);
       }
-
-      // Find the video sender
-      let videoSender = peerConnectionRef.current?.getSenders().find(s => s.track?.kind === "video");
 
       if (videoSender) {
-        // Replace existing video track
         await videoSender.replaceTrack(screenTrack);
-      } else {
-        // Add new track if no video sender exists
-        peerConnectionRef.current?.addTrack(screenTrack, screenOnlyStream);
-      }
-      const pc = peerConnectionRef.current;
-
-      if (pc) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        socket.emit("offer", {
-          to: isCaller
-            ? callState.calleeId
-            : callState.callerId,
-          offer,
-        });
+      } else if (localStreamRef.current) {
+        peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
       }
 
-      // Update local video preview
+      // Update preview
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = screenOnlyStream;
+        localVideoRef.current.srcObject = localStreamRef.current;
       }
 
       // Handle screen share end
       screenTrack.onended = () => {
-        if (!isCallEndedRef.current) {
-          // Restore camera when screen share ends
-          const restoreCamera = async () => {
-            try {
-              const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              const newCameraTrack = cameraStream.getVideoTracks()[0];
-
-              // Update local stream
-              if (localStreamRef.current) {
-                // Remove old video track
-                const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-                if (oldVideoTrack) {
-                  localStreamRef.current.removeTrack(oldVideoTrack);
-                  oldVideoTrack.stop();
-                }
-                localStreamRef.current.addTrack(newCameraTrack);
+        // Restore camera or turn off video
+        if (callState.isCameraOn && cameraStreamRef.current) {
+          const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
+          if (cameraTrack && videoSender) {
+            videoSender.replaceTrack(cameraTrack);
+            if (localStreamRef.current) {
+              const screenTrackToRemove = localStreamRef.current.getVideoTracks()[0];
+              if (screenTrackToRemove) {
+                localStreamRef.current.removeTrack(screenTrackToRemove);
               }
-
-              // Update peer connection
-              const sender = peerConnectionRef.current?.getSenders().find(s => s.track?.kind === "video");
-              if (sender && newCameraTrack) {
-                await sender.replaceTrack(newCameraTrack);
-              }
-
-              // Update local video preview
-              if (localVideoRef.current && localStreamRef.current) {
-                localVideoRef.current.srcObject = localStreamRef.current;
-              }
-
-              setCallState(prev => ({ ...prev, isScreenSharing: false }));
-            } catch (error) {
-              console.error("Error restoring camera:", error);
+              localStreamRef.current.addTrack(cameraTrack);
             }
-          };
-          restoreCamera();
+          }
         }
+
+        if (localVideoRef.current && localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+
+        setCallState(prev => ({ ...prev, isScreenSharing: false }));
       };
 
       setCallState(prev => ({ ...prev, isScreenSharing: true }));
     } catch (error) {
       console.error("Error sharing screen:", error);
+      alert("Screen sharing failed. Please try again.");
     }
   };
 
-  // Toggle recording
   const toggleRecording = () => {
     if (callState.isRecording) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
@@ -675,7 +691,24 @@ export default function TalkToFriends() {
       setCallState(prev => ({ ...prev, isRecording: false }));
     } else {
       if (localStreamRef.current) {
-        const recorder = new MediaRecorder(localStreamRef.current);
+        const combinedStream = new MediaStream();
+
+        // Local tracks
+        localStreamRef.current?.getTracks().forEach(track => {
+          combinedStream.addTrack(track);
+        });
+
+        // Remote tracks
+        remoteStreamRef.current?.getTracks().forEach(track => {
+          combinedStream.addTrack(track);
+        });
+
+        const recorder = new MediaRecorder(
+          combinedStream,
+          {
+            mimeType: "video/webm;codecs=vp8,opus",
+          }
+        );
         recordedChunksRef.current = [];
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -683,7 +716,14 @@ export default function TalkToFriends() {
           }
         };
         recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+          console.log("Chunks:", recordedChunksRef.current.length);
+
+          const blob = new Blob(
+            recordedChunksRef.current,
+            { type: "video/webm" }
+          );
+
+          console.log("Blob Size:", blob.size);
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -698,10 +738,8 @@ export default function TalkToFriends() {
     }
   };
 
-  // End call
   const endCall = () => {
     if (!isCallEndedRef.current) {
-      // Emit end call to other party
       if (callState.calleeId) {
         socket.emit("end-call", {
           to: callState.calleeId,
@@ -815,6 +853,11 @@ export default function TalkToFriends() {
                   <div className="absolute bottom-4 left-4 text-sm text-gray-300 bg-black/50 px-3 py-1 rounded">
                     You {callState.isMuted && "🔇"}
                   </div>
+                  {!localStreamRef.current && (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                      <span className="text-4xl">📷</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
