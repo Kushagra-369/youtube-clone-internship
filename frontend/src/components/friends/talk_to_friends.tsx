@@ -58,10 +58,11 @@ export default function TalkToFriends() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const isCallEndedRef = useRef<boolean>(false);
-  const currentRoomRef = useRef<string | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const isReconnectingRef = useRef<boolean>(false);
+  const videoSenderRef = useRef<RTCRtpSender | null>(null);
+  const blackTrackRef = useRef<MediaStreamTrack | null>(null); // black video track
 
   // Get current user from localStorage
   useEffect(() => {
@@ -133,14 +134,27 @@ export default function TalkToFriends() {
       }));
     });
 
-    socket.on("call-rejected", () => {
-      setCallState(prev => ({ ...prev, isCalling: false, callStatus: "idle" }));
+    socket.on("call-rejected", (data?: { from?: string }) => {
+      console.log("Call rejected:", data);
+      setCallState(prev => ({
+        ...prev,
+        isCalling: false,
+        callStatus: "idle",
+        isInCall: false,
+      }));
       cleanupCall();
-      alert("Call rejected");
+      alert("Call was rejected by the other user");
     });
 
-    socket.on("call-ended", () => {
+    socket.on("call-ended", (data?: { from?: string }) => {
+      console.log("Call ended:", data);
       cleanupCall();
+      setCallState(prev => ({
+        ...prev,
+        callStatus: "idle",
+        isCalling: false,
+        isInCall: false,
+      }));
     });
 
     // WebRTC signaling
@@ -181,9 +195,29 @@ export default function TalkToFriends() {
     }
   };
 
+  // ---- Helper to create a black video track ----
+  const createBlackTrack = (): MediaStreamTrack => {
+    if (blackTrackRef.current) {
+      // If already created, just return a clone (so we can reuse)
+      return blackTrackRef.current.clone();
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    const stream = canvas.captureStream(30);
+    const track = stream.getVideoTracks()[0];
+    blackTrackRef.current = track;
+    return track.clone();
+  };
+
   const cleanupCall = () => {
+    console.log("Cleaning up call...");
     isCallEndedRef.current = true;
-    currentRoomRef.current = null;
 
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
@@ -222,6 +256,12 @@ export default function TalkToFriends() {
       remoteVideoRef.current.srcObject = null;
     }
 
+    videoSenderRef.current = null;
+    if (blackTrackRef.current) {
+      blackTrackRef.current.stop();
+      blackTrackRef.current = null;
+    }
+
     setCallState({
       isCalling: false,
       isInCall: false,
@@ -235,6 +275,8 @@ export default function TalkToFriends() {
       callStatus: "idle",
     });
     setIncomingCall(null);
+    setIsCaller(false);
+    setCallerName("");
   };
 
   const startLocalStream = async (video: boolean) => {
@@ -244,18 +286,21 @@ export default function TalkToFriends() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: video ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user"
-        } : false,
+        video: video
+          ? {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          }
+          : false,
       });
 
       localStreamRef.current = stream;
 
-      // Store camera stream separately for camera toggle
       if (video) {
         cameraStreamRef.current = stream;
+      } else {
+        // Voice call: no video track, we'll add black track later if needed
       }
 
       if (localVideoRef.current) {
@@ -263,47 +308,75 @@ export default function TalkToFriends() {
       }
       return stream;
     } catch (error: any) {
-
       console.error(error);
 
-      if (
-        error.name === "NotReadableError"
-      ) {
-
-        // Camera already busy
+      if (error.name === "NotReadableError") {
         if (cameraStreamRef.current) {
-
-          console.log(
-            "Reusing existing camera stream"
-          );
-
+          console.log("Reusing existing camera stream");
           return cameraStreamRef.current;
         }
-
-        alert(
-          "Camera is already in use by another application."
-        );
-
-      } else if (
-        error.name === "NotAllowedError"
-      ) {
-
-        alert(
-          "Camera permission denied."
-        );
-
+        alert("Camera is already in use by another application.");
+      } else if (error.name === "NotAllowedError") {
+        alert("Camera permission denied.");
       } else {
-
-        alert(
-          "Unable to access camera/microphone."
-        );
-
+        alert("Unable to access camera/microphone.");
       }
 
       return null;
     }
   };
 
+  // ---- Replace video track in peer connection and local stream ----
+  const replaceVideoTrack = async (newTrack: MediaStreamTrack | null) => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    // Find video sender
+    let sender = pc.getSenders().find(s => s.track?.kind === "video");
+    if (!sender) {
+      // If no sender exists, create one
+      if (newTrack && localStreamRef.current) {
+        sender = pc.addTrack(newTrack, localStreamRef.current);
+        videoSenderRef.current = sender;
+      }
+      return;
+    }
+
+    // If newTrack is null, we will disable the current track instead of removing
+    if (!newTrack) {
+      if (sender.track) {
+        sender.track.enabled = false;
+      }
+      videoSenderRef.current = sender;
+      return;
+    }
+
+    // Replace the track
+    try {
+      await sender.replaceTrack(newTrack);
+      videoSenderRef.current = sender;
+      // Update localStream
+      if (localStreamRef.current) {
+        // Remove old video track if exists
+        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldVideoTrack && oldVideoTrack !== newTrack) {
+          localStreamRef.current.removeTrack(oldVideoTrack);
+        }
+        // Add new track if not already present
+        if (!localStreamRef.current.getVideoTracks().includes(newTrack)) {
+          localStreamRef.current.addTrack(newTrack);
+        }
+      }
+      // Update local preview
+      if (localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+    } catch (error) {
+      console.error("Error replacing video track:", error);
+    }
+  };
+
+  // ---- Start call ----
   const startCall = async (userId: string, type: "voice" | "video") => {
     try {
       isCallEndedRef.current = false;
@@ -335,7 +408,6 @@ export default function TalkToFriends() {
       });
 
       await createPeerConnection(stream, userId, true);
-
     } catch (error) {
       console.error("Error starting call:", error);
       setCallState(prev => ({ ...prev, isCalling: false, callStatus: "idle" }));
@@ -370,7 +442,6 @@ export default function TalkToFriends() {
 
       await createPeerConnection(stream, incomingCall.from, false);
       setIncomingCall(null);
-
     } catch (error) {
       console.error("Error accepting call:", error);
     }
@@ -378,14 +449,18 @@ export default function TalkToFriends() {
 
   const rejectCall = () => {
     if (!incomingCall) return;
+
     socket.emit("reject-call", {
       from: currentUser?._id,
       to: incomingCall.from,
     });
+
     setIncomingCall(null);
     setCallState(prev => ({ ...prev, callStatus: "idle" }));
+    cleanupCall();
   };
 
+  // ---- Peer connection ----
   const createPeerConnection = async (stream: MediaStream, remoteUserId: string, isCaller: boolean) => {
     const pc = new RTCPeerConnection({
       iceServers: [
@@ -399,7 +474,10 @@ export default function TalkToFriends() {
 
     // Add all tracks from local stream
     stream.getTracks().forEach(track => {
-      pc.addTrack(track, stream);
+      const sender = pc.addTrack(track, stream);
+      if (track.kind === "video") {
+        videoSenderRef.current = sender;
+      }
     });
 
     // Handle remote stream
@@ -430,14 +508,11 @@ export default function TalkToFriends() {
     pc.oniceconnectionstatechange = () => {
       console.log("ICE Connection State:", pc.iceConnectionState);
 
-      if (pc.iceConnectionState === "disconnected" ||
-        pc.iceConnectionState === "failed") {
-        // Try to reconnect
+      if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
         if (!isCallEndedRef.current && !isReconnectingRef.current) {
           isReconnectingRef.current = true;
           console.log("Attempting to reconnect...");
 
-          // Recreate offer/answer for reconnection
           setTimeout(async () => {
             try {
               if (isCaller && peerConnectionRef.current) {
@@ -480,7 +555,6 @@ export default function TalkToFriends() {
       }
     };
 
-    // If caller, create initial offer
     if (isCaller) {
       try {
         const offer = await pc.createOffer();
@@ -548,6 +622,7 @@ export default function TalkToFriends() {
     }
   };
 
+  // ---- Toggle Mute ----
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -558,157 +633,76 @@ export default function TalkToFriends() {
     }
   };
 
+  // ---- Toggle Camera ----
   const toggleCamera = async () => {
-    if (!peerConnectionRef.current) return;
+    // Screen share chal raha hai toh camera toggle mat karo
+    if (callState.isScreenSharing) {
+      alert("Camera toggle is disabled during screen sharing.");
+      return;
+    }
 
     try {
       if (callState.isCameraOn) {
-        // Turn off camera - find and disable video tracks
-        const videoSender =
-          peerConnectionRef.current
-            ?.getSenders()
-            .find(s => s.track?.kind === "video");
-
-        if (videoSender && videoSender.track) {
-
-          // Just disable the camera
-          videoSender.track.enabled = false;
-
-          // Also disable the local stream track
-          const localVideoTrack =
-            localStreamRef.current
-              ?.getVideoTracks()[0];
-
-          if (localVideoTrack) {
-            localVideoTrack.enabled = false;
-          }
-
-          // Keep local preview (black/frozen as browser handles it)
-          if (
-            localVideoRef.current &&
-            localStreamRef.current
-          ) {
-            localVideoRef.current.srcObject =
-              localStreamRef.current;
-          }
+        // ---- Camera OFF ----
+        // 1. Stop actual camera track
+        if (cameraStreamRef.current) {
+          cameraStreamRef.current.getTracks().forEach(track => track.stop());
+          cameraStreamRef.current = null;
         }
 
-        setCallState(prev => ({
-          ...prev,
-          isCameraOn: false,
-        }));
+        // 2. Replace with black track
+        const blackTrack = createBlackTrack();
+        await replaceVideoTrack(blackTrack);
+
+        setCallState(prev => ({ ...prev, isCameraOn: false }));
       } else {
-
-        // Reuse camera stream if already available
-        if (!cameraStreamRef.current) {
-          cameraStreamRef.current =
-            await navigator.mediaDevices.getUserMedia({
-              video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: "user",
-              },
-            });
+        // ---- Camera ON ----
+        // 1. Get new camera stream
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          },
+        });
+        cameraStreamRef.current = newStream;
+        const cameraTrack = newStream.getVideoTracks()[0];
+        if (!cameraTrack) {
+          throw new Error("No video track found");
         }
+        cameraTrack.enabled = true;
 
-        const newVideoTrack =
-          cameraStreamRef.current.getVideoTracks()[0];
+        // 2. Replace black track with camera track
+        await replaceVideoTrack(cameraTrack);
 
-        if (!newVideoTrack) {
-          console.error("No camera track found");
-          return;
-        }
-
-        // Enable track if previously disabled
-        newVideoTrack.enabled = true;
-
-        // Add to local stream only if not already present
-        if (
-          localStreamRef.current &&
-          !localStreamRef.current
-            .getVideoTracks()
-            .includes(newVideoTrack)
-        ) {
-          localStreamRef.current.addTrack(
-            newVideoTrack
-          );
-        }
-
-        // Replace sender track
-        const videoSender =
-          peerConnectionRef.current
-            ?.getSenders()
-            .find(
-              s => s.track?.kind === "video"
-            );
-
-        if (videoSender) {
-          await videoSender.replaceTrack(
-            newVideoTrack
-          );
-        } else if (localStreamRef.current) {
-          peerConnectionRef.current?.addTrack(
-            newVideoTrack,
-            localStreamRef.current
-          );
-        }
-
-        // Update local preview
-        if (
-          localVideoRef.current &&
-          localStreamRef.current
-        ) {
-          localVideoRef.current.srcObject =
-            localStreamRef.current;
-        }
-
-        setCallState(prev => ({
-          ...prev,
-          isCameraOn: true,
-        }));
+        setCallState(prev => ({ ...prev, isCameraOn: true }));
       }
     } catch (error) {
       console.error("Error toggling camera:", error);
-      alert("Failed to toggle camera. Please check camera permissions.");
+      alert("Failed to toggle camera. Please check permissions.");
     }
   };
 
+  // ---- Toggle Screen Share ----
   const toggleScreenShare = async () => {
-    if (!peerConnectionRef.current) return;
-
     try {
       if (callState.isScreenSharing) {
-        // Stop screen sharing
-        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+        // Stop screen sharing: restore camera or black track
+        if (callState.isCameraOn && cameraStreamRef.current) {
+          const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
+          if (cameraTrack) {
+            await replaceVideoTrack(cameraTrack);
+          }
+        } else {
+          // Camera is off, use black track
+          const blackTrack = createBlackTrack();
+          await replaceVideoTrack(blackTrack);
+        }
 
+        // Clean up screen stream
         if (screenStreamRef.current) {
           screenStreamRef.current.getTracks().forEach(track => track.stop());
           screenStreamRef.current = null;
-        }
-
-        // Restore camera if it was on
-        if (callState.isCameraOn && cameraStreamRef.current) {
-          const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
-          if (cameraTrack && videoSender) {
-            await videoSender.replaceTrack(cameraTrack);
-            // Update local stream
-            if (localStreamRef.current) {
-              // Remove screen track
-              const screenTrack = localStreamRef.current.getVideoTracks()[0];
-              if (screenTrack) {
-                localStreamRef.current.removeTrack(screenTrack);
-              }
-              // Add camera track
-              localStreamRef.current.addTrack(cameraTrack);
-            }
-          }
-        } else if (videoSender) {
-          await videoSender.replaceTrack(null);
-        }
-
-        // Restore camera preview
-        if (localVideoRef.current && localStreamRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
         }
 
         setCallState(prev => ({ ...prev, isScreenSharing: false }));
@@ -724,53 +718,25 @@ export default function TalkToFriends() {
       screenStreamRef.current = screenStream;
       const screenTrack = screenStream.getVideoTracks()[0];
 
-      // Find video sender
-      const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+      // Replace video track with screen track
+      await replaceVideoTrack(screenTrack);
 
-      // Keep audio tracks from local stream
-      const audioTracks = localStreamRef.current?.getAudioTracks() || [];
-
-      // Update local stream
-      if (localStreamRef.current) {
-        // Remove video track if exists
-        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-        if (oldVideoTrack) {
-          localStreamRef.current.removeTrack(oldVideoTrack);
-        }
-        // Add screen track
-        localStreamRef.current.addTrack(screenTrack);
-      }
-
-      if (videoSender) {
-        await videoSender.replaceTrack(screenTrack);
-      } else if (localStreamRef.current) {
-        peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
-      }
-
-      // Update preview
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-
-      // Handle screen share end
+      // Handle screen share end (user clicks "Stop sharing" in browser)
       screenTrack.onended = () => {
-        // Restore camera or turn off video
+        // Restore camera or black
         if (callState.isCameraOn && cameraStreamRef.current) {
           const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
-          if (cameraTrack && videoSender) {
-            videoSender.replaceTrack(cameraTrack);
-            if (localStreamRef.current) {
-              const screenTrackToRemove = localStreamRef.current.getVideoTracks()[0];
-              if (screenTrackToRemove) {
-                localStreamRef.current.removeTrack(screenTrackToRemove);
-              }
-              localStreamRef.current.addTrack(cameraTrack);
-            }
+          if (cameraTrack) {
+            replaceVideoTrack(cameraTrack);
           }
+        } else {
+          const blackTrack = createBlackTrack();
+          replaceVideoTrack(blackTrack);
         }
 
-        if (localVideoRef.current && localStreamRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach(track => track.stop());
+          screenStreamRef.current = null;
         }
 
         setCallState(prev => ({ ...prev, isScreenSharing: false }));
@@ -783,58 +749,101 @@ export default function TalkToFriends() {
     }
   };
 
+  // ---- Toggle Recording ----
   const toggleRecording = () => {
     if (callState.isRecording) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
       }
       setCallState(prev => ({ ...prev, isRecording: false }));
-    } else {
+      return;
+    }
+
+    try {
+      // Create a combined stream for recording
+      const combinedStream = new MediaStream();
+
+      // Add local audio
       if (localStreamRef.current) {
-        const combinedStream = new MediaStream();
-
-        // Local tracks
-        localStreamRef.current?.getTracks().forEach(track => {
-          combinedStream.addTrack(track);
+        localStreamRef.current.getAudioTracks().forEach(track => {
+          combinedStream.addTrack(track.clone());
         });
-
-        // Remote tracks
-        remoteStreamRef.current?.getTracks().forEach(track => {
-          combinedStream.addTrack(track);
-        });
-
-        const recorder = new MediaRecorder(
-          combinedStream,
-          {
-            mimeType: "video/webm;codecs=vp8,opus",
-          }
-        );
-        recordedChunksRef.current = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
-          }
-        };
-        recorder.onstop = () => {
-          console.log("Chunks:", recordedChunksRef.current.length);
-
-          const blob = new Blob(
-            recordedChunksRef.current,
-            { type: "video/webm" }
-          );
-
-          console.log("Blob Size:", blob.size);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `call-recording-${Date.now()}.webm`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setCallState(prev => ({ ...prev, isRecording: true }));
       }
+
+      // Add remote audio
+      if (remoteStreamRef.current) {
+        remoteStreamRef.current.getAudioTracks().forEach(track => {
+          combinedStream.addTrack(track.clone());
+        });
+      }
+
+      // Add video from local stream (could be camera, screen, or black)
+      if (localStreamRef.current) {
+        const videoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (videoTrack) {
+          // Clone the track to avoid interfering with the call
+          const clonedVideo = videoTrack.clone();
+          // Ensure it's enabled
+          clonedVideo.enabled = true;
+          combinedStream.addTrack(clonedVideo);
+        }
+      }
+
+      // If no video track at all, add a black track
+      if (combinedStream.getVideoTracks().length === 0) {
+        const blackTrack = createBlackTrack();
+        combinedStream.addTrack(blackTrack);
+      }
+
+      // Check if we have any tracks
+      if (combinedStream.getTracks().length === 0) {
+        alert("No media streams available to record");
+        return;
+      }
+
+      const recorder = new MediaRecorder(combinedStream, {
+        mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
+          : "video/webm",
+      });
+
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "video/webm",
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `call-recording-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
+
+        // Clean up combined stream
+        combinedStream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start(1000); // 1-second chunks
+      mediaRecorderRef.current = recorder;
+      setCallState(prev => ({ ...prev, isRecording: true }));
+
+      console.log("Recording started successfully");
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      alert("Failed to start recording. Please try again.");
     }
   };
 
@@ -951,7 +960,7 @@ export default function TalkToFriends() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-4 left-4 text-sm text-gray-300 bg-black/50 px-3 py-1 rounded">
-                    You {callState.isMuted && "🔇"}
+                    You {callState.isMuted && "🔇"} {callState.isScreenSharing && "🖥️"}
                   </div>
                   {!localStreamRef.current && (
                     <div className="absolute inset-0 flex items-center justify-center text-gray-500">
@@ -968,8 +977,8 @@ export default function TalkToFriends() {
               <button
                 onClick={toggleMute}
                 className={`p-4 rounded-full transition-all ${callState.isMuted
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-gray-700 hover:bg-gray-600"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-gray-700 hover:bg-gray-600"
                   }`}
                 title="Mute"
               >
@@ -980,8 +989,8 @@ export default function TalkToFriends() {
               <button
                 onClick={toggleCamera}
                 className={`p-4 rounded-full transition-all ${!callState.isCameraOn
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-gray-700 hover:bg-gray-600"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-gray-700 hover:bg-gray-600"
                   }`}
                 title="Camera"
               >
@@ -992,8 +1001,8 @@ export default function TalkToFriends() {
               <button
                 onClick={toggleScreenShare}
                 className={`p-4 rounded-full transition-all ${callState.isScreenSharing
-                  ? "bg-blue-600 hover:bg-blue-700"
-                  : "bg-gray-700 hover:bg-gray-600"
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-gray-700 hover:bg-gray-600"
                   }`}
                 title="Share Screen"
               >
@@ -1004,8 +1013,8 @@ export default function TalkToFriends() {
               <button
                 onClick={toggleRecording}
                 className={`p-4 rounded-full transition-all ${callState.isRecording
-                  ? "bg-red-600 animate-pulse hover:bg-red-700"
-                  : "bg-gray-700 hover:bg-gray-600"
+                    ? "bg-red-600 animate-pulse hover:bg-red-700"
+                    : "bg-gray-700 hover:bg-gray-600"
                   }`}
                 title="Record"
               >
@@ -1055,8 +1064,8 @@ export default function TalkToFriends() {
                   onClick={() => startCall(user._id, "voice")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
                   className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
-                    ? "bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
-                    : "bg-gray-700 cursor-not-allowed opacity-50"
+                      ? "bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                      : "bg-gray-700 cursor-not-allowed opacity-50"
                     }`}
                 >
                   📞 Voice
@@ -1065,8 +1074,8 @@ export default function TalkToFriends() {
                   onClick={() => startCall(user._id, "video")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
                   className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
-                    ? "bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
-                    : "bg-gray-700 cursor-not-allowed opacity-50"
+                      ? "bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+                      : "bg-gray-700 cursor-not-allowed opacity-50"
                     }`}
                 >
                   📹 Video
