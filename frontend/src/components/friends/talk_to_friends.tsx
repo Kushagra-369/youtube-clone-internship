@@ -238,6 +238,9 @@ export default function TalkToFriends() {
   };
 
   const startLocalStream = async (video: boolean) => {
+    if (localStreamRef.current) {
+      return localStreamRef.current;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -259,9 +262,44 @@ export default function TalkToFriends() {
         localVideoRef.current.srcObject = stream;
       }
       return stream;
-    } catch (error) {
-      console.error("Error accessing media devices:", error);
-      alert("Unable to access camera/microphone");
+    } catch (error: any) {
+
+      console.error(error);
+
+      if (
+        error.name === "NotReadableError"
+      ) {
+
+        // Camera already busy
+        if (cameraStreamRef.current) {
+
+          console.log(
+            "Reusing existing camera stream"
+          );
+
+          return cameraStreamRef.current;
+        }
+
+        alert(
+          "Camera is already in use by another application."
+        );
+
+      } else if (
+        error.name === "NotAllowedError"
+      ) {
+
+        alert(
+          "Camera permission denied."
+        );
+
+      } else {
+
+        alert(
+          "Unable to access camera/microphone."
+        );
+
+      }
+
       return null;
     }
   };
@@ -526,46 +564,108 @@ export default function TalkToFriends() {
     try {
       if (callState.isCameraOn) {
         // Turn off camera - find and disable video tracks
-        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+        const videoSender =
+          peerConnectionRef.current
+            ?.getSenders()
+            .find(s => s.track?.kind === "video");
+
         if (videoSender && videoSender.track) {
+
+          // Just disable the camera
           videoSender.track.enabled = false;
-          // Remove track from local stream
-          if (localStreamRef.current) {
-            const videoTrack = localStreamRef.current.getVideoTracks()[0];
-            if (videoTrack) {
-              localStreamRef.current.removeTrack(videoTrack);
-            }
+
+          // Also disable the local stream track
+          const localVideoTrack =
+            localStreamRef.current
+              ?.getVideoTracks()[0];
+
+          if (localVideoTrack) {
+            localVideoTrack.enabled = false;
+          }
+
+          // Keep local preview (black/frozen as browser handles it)
+          if (
+            localVideoRef.current &&
+            localStreamRef.current
+          ) {
+            localVideoRef.current.srcObject =
+              localStreamRef.current;
           }
         }
-        setCallState(prev => ({ ...prev, isCameraOn: false }));
+
+        setCallState(prev => ({
+          ...prev,
+          isCameraOn: false,
+        }));
       } else {
-        // Turn on camera - create new video stream
-        const newCameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
 
-        const newVideoTrack = newCameraStream.getVideoTracks()[0];
-        cameraStreamRef.current = newCameraStream;
-
-        // Add track to local stream
-        if (localStreamRef.current) {
-          localStreamRef.current.addTrack(newVideoTrack);
+        // Reuse camera stream if already available
+        if (!cameraStreamRef.current) {
+          cameraStreamRef.current =
+            await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: "user",
+              },
+            });
         }
 
-        // Replace or add video sender
-        const videoSender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === "video");
+        const newVideoTrack =
+          cameraStreamRef.current.getVideoTracks()[0];
+
+        if (!newVideoTrack) {
+          console.error("No camera track found");
+          return;
+        }
+
+        // Enable track if previously disabled
+        newVideoTrack.enabled = true;
+
+        // Add to local stream only if not already present
+        if (
+          localStreamRef.current &&
+          !localStreamRef.current
+            .getVideoTracks()
+            .includes(newVideoTrack)
+        ) {
+          localStreamRef.current.addTrack(
+            newVideoTrack
+          );
+        }
+
+        // Replace sender track
+        const videoSender =
+          peerConnectionRef.current
+            ?.getSenders()
+            .find(
+              s => s.track?.kind === "video"
+            );
+
         if (videoSender) {
-          await videoSender.replaceTrack(newVideoTrack);
+          await videoSender.replaceTrack(
+            newVideoTrack
+          );
         } else if (localStreamRef.current) {
-          peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
+          peerConnectionRef.current?.addTrack(
+            newVideoTrack,
+            localStreamRef.current
+          );
         }
 
-        // Update local video
-        if (localVideoRef.current && localStreamRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
+        // Update local preview
+        if (
+          localVideoRef.current &&
+          localStreamRef.current
+        ) {
+          localVideoRef.current.srcObject =
+            localStreamRef.current;
         }
 
-        setCallState(prev => ({ ...prev, isCameraOn: true }));
+        setCallState(prev => ({
+          ...prev,
+          isCameraOn: true,
+        }));
       }
     } catch (error) {
       console.error("Error toggling camera:", error);
