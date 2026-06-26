@@ -398,6 +398,31 @@ const Navbar = () => {
                                     </button>
                                 )}
 
+                                <Link
+                                    to="/friends"
+                                    onClick={() => setShowMobileMenu(false)}
+                                >
+                                    <button
+                                        className={`w-full px-4 py-3 text-left ${dropdownText} ${mobileMenuItemHover} transition-colors flex items-center gap-3`}
+                                    >
+                                        <svg
+                                            className={`w-5 h-5 ${iconColor}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M17 20h5V18a4 4 0 00-5-3.87M9 20H4V18a4 4 0 015-3.87m8-6a3 3 0 11-6 0 3 3 0 016 0zM9 8a3 3 0 11-6 0 3 3 0 016 0z"
+                                            />
+                                        </svg>
+
+                                        Friends
+                                    </button>
+                                </Link>
+
                                 <Link to="/watch-plans" onClick={() => setShowMobileMenu(false)}>
                                     <button className={`w-full px-4 py-3 text-left ${dropdownText} ${mobileMenuItemHover} transition-colors flex items-center gap-3`}>
                                         <svg className={`w-5 h-5 ${iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
