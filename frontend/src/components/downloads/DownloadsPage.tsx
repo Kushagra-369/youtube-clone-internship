@@ -134,6 +134,10 @@ const DownloadsPage = () => {
 
   const qualities = ["all", "1080p", "720p", "480p", "360p"];
   const totalSize = downloads.length * 150;
+  const maxDownloads =
+    user?.plan === "premium"
+      ? Infinity
+      : 1;
 
   if (loading) {
     return (
@@ -184,11 +188,10 @@ const DownloadsPage = () => {
                 <button
                   key={quality}
                   onClick={() => setSelectedQuality(quality)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-                    selectedQuality === quality
-                      ? `${chipBgActive} ${chipTextActive}`
-                      : `${chipBg} ${chipText} ${chipHover}`
-                  }`}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${selectedQuality === quality
+                    ? `${chipBgActive} ${chipTextActive}`
+                    : `${chipBg} ${chipText} ${chipHover}`
+                    }`}
                 >
                   {quality === "all" ? "All Qualities" : quality}
                 </button>
@@ -324,11 +327,21 @@ const DownloadsPage = () => {
                 <div className="w-48 h-2 ${progressBg} rounded-full overflow-hidden">
                   <div
                     className={`h-full ${progressFill} rounded-full`}
-                    style={{ width: `${Math.min((downloads.length / 50) * 100, 100)}%` }}
+                    style={{
+                      width:
+                        maxDownloads === Infinity
+                          ? "100%"
+                          : `${Math.min(
+                            (downloads.length / maxDownloads) * 100,
+                            100
+                          )}%`,
+                    }}
                   />
                 </div>
                 <p className={`${mutedText} text-xs`}>
-                  {downloads.length}/50 videos
+                  {maxDownloads === Infinity
+                    ? `${downloads.length} Downloads`
+                    : `${downloads.length}/${maxDownloads} Downloads`}
                 </p>
               </div>
             </div>

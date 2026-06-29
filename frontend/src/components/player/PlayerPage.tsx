@@ -114,24 +114,35 @@ const PlayerPage = () => {
                 const newTime = prev + 1;
                 if (user) {
                     const limits: Record<string, number> = {
-                        free: 300,      // 5 min
-                        bronze: 420,    // 7 min
-                        silver: 600,    // 10 min
+                        guest: 120,     // 2 minutes
+                        free: 300,      // 5 minutes
+                        bronze: 420,    // 7 minutes
+                        silver: 600,    // 10 minutes
                         gold: Infinity,
                     };
-                    const limit = limits[user.watchPlan || "free"];
+
+                    const currentPlan = user
+                        ? (user.watchPlan || "free")
+                        : "guest";
+
+                    const limit = limits[currentPlan];
 
                     if (newTime >= limit && limit !== Infinity) {
+
                         setWatchLimitReached(true);
+
                         if (videoRef.current) {
                             videoRef.current.pause();
                             setIsPlaying(false);
                         }
+
                         if (watchTimeInterval.current) {
                             clearInterval(watchTimeInterval.current);
                             watchTimeInterval.current = null;
                         }
                     }
+
+                    return newTime;
                 }
                 return newTime;
             });
@@ -460,17 +471,26 @@ const PlayerPage = () => {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Get watch limit for display
     const getWatchLimitDisplay = () => {
-        if (!user) return null;
+
         const limits: Record<string, number> = {
+            guest: 120,
             free: 300,
             bronze: 420,
             silver: 600,
             gold: Infinity,
         };
-        const limit = limits[user.watchPlan || "free"];
-        if (limit === Infinity) return "Unlimited";
+
+        const currentPlan = user
+            ? (user.watchPlan || "free")
+            : "guest";
+
+        const limit = limits[currentPlan];
+
+        if (limit === Infinity) {
+            return "Unlimited";
+        }
+
         return formatWatchTime(limit);
     };
 
