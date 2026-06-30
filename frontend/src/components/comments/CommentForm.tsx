@@ -66,9 +66,16 @@ const CommentForm = ({ onCommentCreated, videoId }: Props) => {
     e.preventDefault();
     if (!text.trim()) return;
 
+    // Check if user is logged in
+    if (!user) {
+      alert("Please sign in to comment");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await createComment(text, city, videoId);
+      // Send userId AND videoId to backend
+      await createComment(text, city, videoId, user._id);
       setText("");
       await onCommentCreated();
     } catch (error) {
@@ -116,7 +123,7 @@ const CommentForm = ({ onCommentCreated, videoId }: Props) => {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !text.trim()}
+              disabled={isSubmitting || !text.trim() || !user}
               className="px-4 py-1.5 bg-[#3ea6ff] text-black text-sm font-medium rounded-full hover:bg-[#65b8ff] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Posting..." : "Comment"}

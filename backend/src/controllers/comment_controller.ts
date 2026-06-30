@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Comment from "../models/comment_model";
+import User from "../models/user_model";
 
 // Create Comment
 export const createComment = async (
@@ -7,19 +8,19 @@ export const createComment = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { text, city } = req.body;
+    const { text, city, userId, videoId } = req.body;   // Accept userId AND videoId
 
-    if (!text || !city) {
+    // Validate required fields
+    if (!text || !city || !userId || !videoId) {
       res.status(400).json({
         success: false,
-        message: "Text and city are required",
+        message: "Text, city, userId, and videoId are required",
       });
       return;
     }
 
     // Special Character Validation
     const specialCharRegex = /[<>{}[\]\\$%^*_=+|~`]/;
-
     if (specialCharRegex.test(text)) {
       res.status(400).json({
         success: false,
@@ -28,9 +29,22 @@ export const createComment = async (
       return;
     }
 
+    // Find the user to get the name
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
     const comment = await Comment.create({
       text,
       city,
+      userId,
+      userName: user.name,   // Store the user's name
+      videoId,               // Store the video ID
     });
 
     res.status(201).json({
@@ -40,7 +54,6 @@ export const createComment = async (
     });
   } catch (error) {
     console.error("Create Comment Error:", error);
-
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -48,15 +61,22 @@ export const createComment = async (
   }
 };
 
-// Get All Comments
+// Get Comments (filtered by videoId)
 export const getComments = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const comments = await Comment.find().sort({
-      createdAt: -1,
-    });
+    const { videoId } = req.query;
+
+    // Build query
+    const query: any = {};
+    if (videoId) {
+      query.videoId = videoId;
+    }
+
+    const comments = await Comment.find(query)
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -65,7 +85,6 @@ export const getComments = async (
     });
   } catch (error) {
     console.error("Get Comments Error:", error);
-
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -73,6 +92,7 @@ export const getComments = async (
   }
 };
 
+// Like Comment
 export const likeComment = async (
   req: Request,
   res: Response
@@ -104,7 +124,6 @@ export const likeComment = async (
       comment.likedBy = comment.likedBy.filter(
         (uid) => uid !== userId
       );
-
       comment.likes = comment.likedBy.length;
 
       await comment.save();
@@ -114,7 +133,6 @@ export const likeComment = async (
         message: "Like removed",
         data: comment,
       });
-
       return;
     }
 
@@ -141,7 +159,6 @@ export const likeComment = async (
     });
   } catch (error) {
     console.error("Like Comment Error:", error);
-
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -149,6 +166,7 @@ export const likeComment = async (
   }
 };
 
+// Dislike Comment
 export const dislikeComment = async (
   req: Request,
   res: Response
@@ -180,7 +198,6 @@ export const dislikeComment = async (
       comment.dislikedBy = comment.dislikedBy.filter(
         (uid) => uid !== userId
       );
-
       comment.dislikes = comment.dislikedBy.length;
 
       await comment.save();
@@ -190,7 +207,6 @@ export const dislikeComment = async (
         message: "Dislike removed",
         data: comment,
       });
-
       return;
     }
 
@@ -208,7 +224,7 @@ export const dislikeComment = async (
     comment.likes = comment.likedBy.length;
     comment.dislikes = comment.dislikedBy.length;
 
-    // Internship Requirement
+    // Internship Requirement: Delete comment if it receives 2 dislikes
     if (comment.dislikes >= 2) {
       await Comment.findByIdAndDelete(id);
 
@@ -216,7 +232,6 @@ export const dislikeComment = async (
         success: true,
         message: "Comment removed after receiving 2 dislikes",
       });
-
       return;
     }
 
@@ -229,7 +244,6 @@ export const dislikeComment = async (
     });
   } catch (error) {
     console.error("Dislike Comment Error:", error);
-
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -237,6 +251,7 @@ export const dislikeComment = async (
   }
 };
 
+// Translate Comment
 export const translateComment = async (
   req: Request,
   res: Response
@@ -268,7 +283,6 @@ export const translateComment = async (
     });
   } catch (error) {
     console.error("Translation Error:", error);
-
     res.status(500).json({
       success: false,
       message: "Translation failed",

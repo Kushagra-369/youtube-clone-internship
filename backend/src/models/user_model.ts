@@ -1,92 +1,82 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IUser extends Document {
-  name: string;
-  email: string;
-
-  plan: "free" | "premium";
-  watchPlan:
-  | "free"
-  | "bronze"
-  | "silver"
-  | "gold";
-
-  downloadCount: number;
-  lastDownloadDate: Date | null;
-  phone: string;
-  state: string;
-  otp : string;
-  otpExpiry: Date | null;
-
-  createdAt: Date;
-  updatedAt: Date;
+    name: string;
+    email: string;
+    phone?: string;
+    state?: string;
+    plan: string;
+    watchPlan: string;
+    downloadCount: number;
+    lastDownloadDate: Date;
+    otp?: string;
+    otpExpiry?: Date|null;
+    totalWatchTime: number;        // Track total watch time in seconds
+    lastWatchDate: Date;           // Track last watch date to reset daily
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const userSchema = new Schema<IUser>(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            lowercase: true,
+        },
+        phone: {
+            type: String,
+            trim: true,
+        },
+        state: {
+            type: String,
+            trim: true,
+        },
+        plan: {
+            type: String,
+            enum: ["free", "premium"],
+            default: "free",
+        },
+        watchPlan: {
+            type: String,
+            enum: ["free", "bronze", "silver", "gold"],
+            default: "free",
+        },
+        downloadCount: {
+            type: Number,
+            default: 0,
+        },
+        lastDownloadDate: {
+            type: Date,
+            default: Date.now,
+        },
+        otp: {
+            type: String,
+        },
+        otpExpiry: {
+            type: Date,
+            default:null
+        },
+        totalWatchTime: {
+            type: Number,
+            default: 0,
+        },
+        lastWatchDate: {
+            type: Date,
+            default: Date.now,
+        },
     },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-    },
-
-    plan: {
-      type: String,
-      enum: ["free", "premium"],
-      default: "free",
-    },
-
-    watchPlan: {
-      type: String,
-      enum: ["free", "bronze", "silver", "gold"],
-      default: "free",
-    },
-
-    phone: {
-      type: String,
-      default: "",
-    },
-
-    state: {
-      type: String,
-      default: "",
-    },
-
-    downloadCount: {
-      type: Number,
-      default: 0,
-    },
-
-    lastDownloadDate: {
-      type: Date,
-      default: null,
-    },
-    otp: {
-      type: String,
-      default: "",
-    },
-
-    otpExpiry: {
-      type: Date,
-      default: null,
-    },
-  },
-  {
-    timestamps: true,
-  }
+    {
+        timestamps: true,
+    }
 );
 
-const User = mongoose.model<IUser>(
-  "User",
-  userSchema
-);
-
+const User = mongoose.model<IUser>("User", userSchema);
 export default User;

@@ -9,6 +9,9 @@ export interface IComment extends Document {
     updatedAt: Date;
     likedBy: string[];
     dislikedBy: string[];
+    userId: mongoose.Types.ObjectId;   // Reference to User
+    userName: string;                  // User's name (denormalized for performance)
+    videoId: string;                   // Video ID this comment belongs to
 }
 
 const commentSchema = new Schema<IComment>(
@@ -18,18 +21,15 @@ const commentSchema = new Schema<IComment>(
             required: true,
             trim: true,
         },
-
         city: {
             type: String,
             required: true,
             trim: true,
         },
-
         likes: {
             type: Number,
             default: 0,
         },
-
         dislikes: {
             type: Number,
             default: 0,
@@ -38,10 +38,24 @@ const commentSchema = new Schema<IComment>(
             type: [String],
             default: [],
         },
-
         dislikedBy: {
             type: [String],
             default: [],
+        },
+        userId: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        userName: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        videoId: {
+            type: String,
+            required: true,
+            trim: true,
         },
     },
     {
@@ -49,6 +63,8 @@ const commentSchema = new Schema<IComment>(
     }
 );
 
-const Comment = mongoose.model<IComment>("Comment", commentSchema);
+// Add indexes for better performance
+commentSchema.index({ videoId: 1, createdAt: -1 });
 
+const Comment = mongoose.model<IComment>("Comment", commentSchema);
 export default Comment;

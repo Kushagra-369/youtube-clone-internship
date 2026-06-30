@@ -33,7 +33,6 @@ const CommentsPage = ({ videoId }: CommentsPageProps) => {
     // Theme-based classes
     const textColor = isLight ? "text-black" : "text-white";
     const mutedText = isLight ? "text-gray-600" : "text-[#aaaaaa]";
-    const borderColor = isLight ? "border-gray-200" : "border-[#272727]";
     const cardBg = isLight ? "bg-white" : "bg-[#0f0f0f]";
     const spinnerBorder = isLight ? "border-gray-300" : "border-white";
     const spinnerAccent = isLight ? "border-t-gray-600" : "border-t-transparent";

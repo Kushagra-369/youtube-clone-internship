@@ -38,7 +38,8 @@ export const getComments = async (videoId?: string): Promise<GetCommentsResponse
 export const createComment = async (
     text: string,
     city: string,
-    videoId?: string
+    videoId?: string,
+    userId?: string
 ): Promise<CreateCommentResponse> => {
     const response = await axios.post<CreateCommentResponse>(
         `${API_URL}/create_comments`,
@@ -46,6 +47,7 @@ export const createComment = async (
             text,
             city,
             videoId,
+            userId,  // Send userId to the backend
         }
     );
     return response.data;

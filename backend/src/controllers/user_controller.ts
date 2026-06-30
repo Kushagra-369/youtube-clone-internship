@@ -53,7 +53,7 @@ export const getUsers = async (
 ): Promise<void> => {
   try {
     const { excludeUserId } = req.query; // Current user ID to exclude
-    
+
     // Build query
     const query: any = {};
     if (excludeUserId) {
@@ -474,4 +474,93 @@ export const verifyPhoneOTP = async (
       success: false,
     });
   }
+};
+
+// Update user's watch time
+export const updateWatchTime = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    try {
+        const { userId } = req.params;
+        const { watchTime } = req.body;
+
+        if (!userId) {
+            res.status(400).json({
+                success: false,
+                message: "User ID is required",
+            });
+            return;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+            return;
+        }
+
+        user.totalWatchTime = watchTime || 0;
+        user.lastWatchDate = new Date();
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Watch time updated successfully",
+            data: {
+                totalWatchTime: user.totalWatchTime,
+                lastWatchDate: user.lastWatchDate,
+            },
+        });
+    } catch (error) {
+        console.error("Update Watch Time Error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+        });
+    }
+};
+
+// Get user's watch time
+export const getUserWatchTime = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    try {
+        const { userId } = req.params;
+
+        if (!userId) {
+            res.status(400).json({
+                success: false,
+                message: "User ID is required",
+            });
+            return;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                totalWatchTime: user.totalWatchTime || 0,
+                lastWatchDate: user.lastWatchDate,
+                watchPlan: user.watchPlan,
+            },
+        });
+    } catch (error) {
+        console.error("Get Watch Time Error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+        });
+    }
 };

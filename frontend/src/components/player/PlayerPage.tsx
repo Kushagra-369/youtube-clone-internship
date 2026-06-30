@@ -5,10 +5,15 @@ import { downloadVideo } from "../../services/download.service";
 import { useParams, Link } from "react-router-dom";
 import { getVideoById, getVideos } from "../../services/video.service";
 import type { Video } from "../../types/video.types";
-import { getUserByEmail } from "../../services/user.service";
+import { getUserById, updateWatchTime } from "../../services/user.service";
 import { getThemeByLocationAndTime } from "../utils/theme";
 import { useNavigate } from "react-router-dom";
-// Extend Video type to include optional fields
+import {
+    getChannelByOwner,
+    subscribeChannel,
+    unsubscribeChannel,
+} from "../../services/channel.service";
+
 interface ExtendedVideo extends Video {
     uploadDate?: string;
     video_url?: string;
@@ -40,26 +45,49 @@ const PlayerPage = () => {
     const [watchLimitReached, setWatchLimitReached] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [tapCount, setTapCount] = useState(0);
-    const [tapTimeout, setTapTimeout] =
-        useState<ReturnType<typeof setTimeout> | null>(null);
+    const [tapTimeout, setTapTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
     const [lastTapTime, setLastTapTime] = useState(0);
     const [tapPosition, setTapPosition] = useState<'center' | 'left' | 'right' | null>(null);
     const [showSeekFeedback, setShowSeekFeedback] = useState<string | null>(null);
     const [showComments, setShowComments] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+
+    // Channel-related state (separate from video)
+    const [channelId, setChannelId] = useState<string | null>(null);
+    const [channelName, setChannelName] = useState<string>("");
+    const [subscriberCount, setSubscriberCount] = useState(0);
+    const [channelFetchError, setChannelFetchError] = useState(false);
+
     const navigate = useNavigate();
     const videoRef = useRef<HTMLVideoElement>(null);
     const watchTimeInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-    const controlsTimeout =
-        useRef<ReturnType<typeof setTimeout> | null>(null);
+    const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem("user") || "null"));
 
+    // Load user from localStorage on mount and when storage changes
     useEffect(() => {
         const savedUser = localStorage.getItem("user");
         if (savedUser) {
             const parsedUser = JSON.parse(savedUser);
             setUser(parsedUser);
+            const savedWatchTime = localStorage.getItem(`watchTime_${parsedUser._id}`);
+            if (savedWatchTime) {
+                const parsedTime = parseInt(savedWatchTime);
+                setWatchTime(parsedTime);
+                const limits: Record<string, number> = {
+                    guest: 120,
+                    free: 300,
+                    bronze: 420,
+                    silver: 600,
+                    gold: Infinity,
+                };
+                const currentPlan = parsedUser.watchPlan || "free";
+                const limit = limits[currentPlan];
+                if (parsedTime >= limit && limit !== Infinity) {
+                    setWatchLimitReached(true);
+                }
+            }
         }
     }, []);
 
@@ -68,11 +96,11 @@ const PlayerPage = () => {
     const qualities = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
     const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-    // Get theme
+    // Theme
     const theme = getThemeByLocationAndTime(user?.state || "");
     const isLight = theme === "light";
 
-    // Theme-based classes
+    // Theme classes (unchanged)
     const bgColor = isLight ? "bg-white" : "bg-[#0f0f0f]";
     const textColor = isLight ? "text-black" : "text-white";
     const borderColor = isLight ? "border-gray-200" : "border-[#272727]";
@@ -105,46 +133,38 @@ const PlayerPage = () => {
         alert("Please sign in to use this feature.");
     };
 
-    // Watch Timer Functions
+    // Watch Timer Functions (unchanged)
     const startWatchTimer = () => {
         if (watchTimeInterval.current) return;
-
         watchTimeInterval.current = setInterval(() => {
             setWatchTime((prev) => {
                 const newTime = prev + 1;
                 if (user) {
                     const limits: Record<string, number> = {
-                        guest: 120,     // 2 minutes
-                        free: 300,      // 5 minutes
-                        bronze: 420,    // 7 minutes
-                        silver: 600,    // 10 minutes
+                        guest: 120,
+                        free: 300,
+                        bronze: 420,
+                        silver: 600,
                         gold: Infinity,
                     };
-
-                    const currentPlan = user
-                        ? (user.watchPlan || "free")
-                        : "guest";
-
+                    const currentPlan = user.watchPlan || "free";
                     const limit = limits[currentPlan];
-
+                    localStorage.setItem(`watchTime_${user._id}`, newTime.toString());
                     if (newTime >= limit && limit !== Infinity) {
-
                         setWatchLimitReached(true);
-
                         if (videoRef.current) {
                             videoRef.current.pause();
                             setIsPlaying(false);
                         }
-
                         if (watchTimeInterval.current) {
                             clearInterval(watchTimeInterval.current);
                             watchTimeInterval.current = null;
                         }
+                        updateWatchTime(user._id, newTime).catch(console.error);
                     }
-
                     return newTime;
                 }
-                return newTime;
+                return prev;
             });
         }, 1000);
     };
@@ -154,17 +174,18 @@ const PlayerPage = () => {
             clearInterval(watchTimeInterval.current);
             watchTimeInterval.current = null;
         }
+        if (user && watchTime > 0) {
+            updateWatchTime(user._id, watchTime).catch(console.error);
+        }
     };
 
-    // Video Controls
+    // Video Controls (unchanged)
     const togglePlay = () => {
         if (!videoRef.current) return;
-
         if (watchLimitReached) {
             alert("Watch limit reached. Please upgrade your plan.");
             return;
         }
-
         if (isPlaying) {
             videoRef.current.pause();
             setIsPlaying(false);
@@ -189,20 +210,16 @@ const PlayerPage = () => {
         setTimeout(() => setShowSeekFeedback(null), 1000);
     };
 
-    // Tap/Gesture Handling
+    // Tap/Gesture Handling (unchanged)
     const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
-        console.log("CLICK");
         e.preventDefault();
         const now = Date.now();
         const timeSinceLastTap = now - lastTapTime;
-        console.log("TIME:", timeSinceLastTap);
         setLastTapTime(now);
-
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const width = rect.width;
         let position: 'center' | 'left' | 'right';
-
         if (x < width / 3) position = 'left';
         else if (x > (2 * width) / 3) position = 'right';
         else position = 'center';
@@ -210,15 +227,7 @@ const PlayerPage = () => {
         if (timeSinceLastTap > 1000 || (tapPosition && tapPosition !== position)) {
             setTapCount(0);
         }
-
         const newTapCount = tapCount + 1;
-
-        console.log(
-            "tapCount:",
-            tapCount,
-            "newTapCount:",
-            newTapCount
-        );
         setTapCount(newTapCount);
         setTapPosition(position);
 
@@ -227,9 +236,7 @@ const PlayerPage = () => {
             setTapTimeout(null);
         }
 
-        // Handle based on tap count and position
         if (newTapCount === 1) {
-            // Single tap - check if center for play/pause
             if (position === 'center') {
                 const timeout = setTimeout(() => {
                     togglePlay();
@@ -238,7 +245,6 @@ const PlayerPage = () => {
                 }, 400);
                 setTapTimeout(timeout);
             } else {
-                // Single tap on sides - show controls
                 setShowControls(true);
                 const timeout = setTimeout(() => {
                     setTapCount(0);
@@ -247,65 +253,41 @@ const PlayerPage = () => {
                 setTapTimeout(timeout);
             }
         } else if (newTapCount === 2) {
-
             if (tapTimeout) {
                 clearTimeout(tapTimeout);
                 setTapTimeout(null);
             }
-
             if (position === "left") {
                 handleSeek(-10);
-            }
-            else if (position === "right") {
+            } else if (position === "right") {
                 handleSeek(10);
-            }
-            else {
+            } else {
                 togglePlay();
             }
-
-            // Triple tap ke liye wait karo
             const timeout = setTimeout(() => {
                 setTapCount(0);
                 setTapPosition(null);
             }, 500);
-
             setTapTimeout(timeout);
         } else if (newTapCount >= 3) {
             setTapCount(0);
             setTapPosition(null);
-            // Triple tap
-            console.log("TRIPLE TAP DETECTED", position);
             if (tapTimeout) {
                 clearTimeout(tapTimeout);
                 setTapTimeout(null);
             }
-
             if (position === "center") {
-
-                console.log(
-                    "NEXT VIDEO:",
-                    suggestedVideos[0]?._id
-                );
-
                 if (suggestedVideos.length > 0) {
-                    navigate(
-                        `/video/${suggestedVideos[0]._id}`
-                    );
+                    navigate(`/video/${suggestedVideos[0]._id}`);
                 }
-
-                showSeekFeedbackText(
-                    "⏭️ Next Video"
-                );
+                showSeekFeedbackText("⏭️ Next Video");
             } else if (position === 'left') {
-                // Triple tap left - toggle comments
                 setShowComments(!showComments);
                 showSeekFeedbackText(showComments ? '💬 Comments Closed' : '💬 Comments Opened');
             } else if (position === 'right') {
-                // Triple tap right - close website
                 showSeekFeedbackText('👋 Goodbye!');
                 setTimeout(() => {
                     window.close();
-                    // Fallback
                     window.location.href = '/';
                 }, 500);
             }
@@ -314,7 +296,6 @@ const PlayerPage = () => {
         }
     };
 
-    // Auto-hide controls
     const handleMouseMove = () => {
         setShowControls(true);
         if (controlsTimeout.current) {
@@ -327,16 +308,80 @@ const PlayerPage = () => {
         }, 3000);
     };
 
-    // Fetch video and suggestions
+    // --- Main fetch functions ---
     const fetchVideo = async () => {
         try {
             setLoading(true);
-            setWatchTime(0);
-            setWatchLimitReached(false);
             const response = await getVideoById(id!);
-            setVideo(response.data);
+            const videoData = response.data;
+            setVideo(videoData);
+
+            // Reset channel state
+            setChannelId(null);
+            setChannelName("");
+            setSubscriberCount(0);
+            setIsSubscribed(false);
+            setChannelFetchError(false);
+
+            // If video has uploadedBy, fetch the associated channel
+            if (videoData.uploadedBy) {
+                try {
+                    const channelResponse =
+                        await getChannelByOwner(
+                            videoData.uploadedBy
+                        );
+                    console.log(channelResponse);
+                    console.log("VIDEO:", videoData);
+                    console.log("UPLOADED BY:", videoData.uploadedBy);
+                    console.log("CHANNEL:", channelResponse.data);
+                    if (!channelResponse.success) {
+                        // Channel not found – fallback to user's name or placeholder
+                        setChannelFetchError(true);
+                        const userResponse = await getUserById(videoData.uploadedBy);
+
+                        if (userResponse.success) {
+                            setChannelName(
+                                `${userResponse.data.name}'s Channel`
+                            );
+                        } else {
+                            setChannelName("Unknown Channel");
+                        }
+                        setSubscriberCount(0);
+                        setChannelId(null);
+                    } else {
+                        if (channelResponse.success && channelResponse.data) {
+                            const channel = channelResponse.data;
+                            setChannelId(channel._id);
+                            setChannelName(channel.channelName || "Unknown Channel");
+                            setSubscriberCount(
+                                channel.subscribedBy?.length ?? 0
+                            );
+
+                            // Check if current user is subscribed
+                            if (user && Array.isArray(channel.subscribedBy)) {
+                                setIsSubscribed(
+                                    channel.subscribedBy.some(
+                                        (id: string) => id === user._id
+                                    )
+                                );
+                            }
+                        } else {
+                            setChannelFetchError(true);
+                            setChannelName("Unknown Channel");
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching channel:", error);
+                    setChannelFetchError(true);
+                    setChannelName("Unknown Channel");
+                }
+            } else {
+                // No uploadedBy field
+                setChannelFetchError(true);
+                setChannelName("Unknown Channel");
+            }
         } catch (error) {
-            console.error(error);
+            console.error("Error fetching video:", error);
         } finally {
             setLoading(false);
         }
@@ -359,7 +404,19 @@ const PlayerPage = () => {
     useEffect(() => {
         fetchVideo();
         fetchSuggestedVideos();
+        return () => {
+            stopWatchTimer();
+        };
     }, [id]);
+
+    // Re-check subscription status when user changes (e.g., after login/logout)
+    useEffect(() => {
+        if (channelId && user) {
+            // If we have a channelId and user, we can verify subscription
+            // but we already set it from fetch; we could also refresh if needed
+            // We'll keep the current state, but you could re-fetch if needed.
+        }
+    }, [user, channelId]);
 
     useEffect(() => {
         if (videoRef.current) {
@@ -380,6 +437,56 @@ const PlayerPage = () => {
         };
     }, []);
 
+    // Subscribe/Unsubscribe handler
+    const handleSubscribe = async () => {
+        if (!isLoggedIn) {
+            requireLogin();
+            return;
+        }
+
+        if (!channelId) {
+            alert("Channel not found. Cannot subscribe.");
+            return;
+        }
+
+        try {
+            let data;
+
+            if (isSubscribed) {
+                data = await unsubscribeChannel(
+                    channelId,
+                    user._id
+                );
+            } else {
+                data = await subscribeChannel(
+                    channelId,
+                    user._id
+                );
+            }
+
+            if (data.success) {
+                setIsSubscribed(data.data.subscribedBy.includes(user._id));
+                setSubscriberCount(
+                    data.data.subscribedBy.length
+                );
+            } else {
+                alert(
+                    data.message ||
+                    "Failed to update subscription"
+                );
+            }
+
+        } catch (error) {
+            console.error(
+                "Subscribe error:",
+                error
+            );
+
+            alert(
+                "Failed to update subscription"
+            );
+        }
+    };
     const handleQualityChange = (quality: string) => {
         setSelectedQuality(quality);
         if (quality !== "Auto" && videoRef.current) {
@@ -410,7 +517,7 @@ const PlayerPage = () => {
     const handleLike = async () => {
         try {
             if (!user || !video) return;
-            const response = await likeVideo(video._id, user.email);
+            const response = await likeVideo(video._id, user._id);
             setVideo(response.data);
             setIsLiked(!isLiked);
         } catch (error) {
@@ -421,7 +528,7 @@ const PlayerPage = () => {
     const handleDislike = async () => {
         try {
             if (!user || !video) return;
-            const response = await dislikeVideo(video._id, user.email);
+            const response = await dislikeVideo(video._id, user._id);
             setVideo(response.data);
             setIsDisliked(!isDisliked);
         } catch (error) {
@@ -442,7 +549,7 @@ const PlayerPage = () => {
 
     const handleDownload = async () => {
         try {
-            const userResponse = await getUserByEmail(user.email);
+            const userResponse = await getUserById(user._id);
             const userId = userResponse.data._id;
             const response = await downloadVideo(userId, video!._id);
             alert(response.message);
@@ -472,7 +579,6 @@ const PlayerPage = () => {
     };
 
     const getWatchLimitDisplay = () => {
-
         const limits: Record<string, number> = {
             guest: 120,
             free: 300,
@@ -480,21 +586,14 @@ const PlayerPage = () => {
             silver: 600,
             gold: Infinity,
         };
-
-        const currentPlan = user
-            ? (user.watchPlan || "free")
-            : "guest";
-
+        const currentPlan = user ? (user.watchPlan || "free") : "guest";
         const limit = limits[currentPlan];
-
         if (limit === Infinity) {
             return "Unlimited";
         }
-
         return formatWatchTime(limit);
     };
 
-    // Handle video progress
     const handleTimeUpdate = () => {
         if (videoRef.current) {
             setCurrentTime(videoRef.current.currentTime);
@@ -502,7 +601,6 @@ const PlayerPage = () => {
         }
     };
 
-    // Handle progress bar click
     const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (videoRef.current) {
             const rect = e.currentTarget.getBoundingClientRect();
@@ -625,7 +723,6 @@ const PlayerPage = () => {
 
                                         {/* Custom Video Controls */}
                                         <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} z-10`}>
-                                            {/* Progress Bar */}
                                             <div
                                                 className="relative w-full h-1 bg-gray-600 rounded-full cursor-pointer mb-3"
                                                 onClick={handleProgressClick}
@@ -700,28 +797,24 @@ const PlayerPage = () => {
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-full ${cardBg} flex items-center justify-center`}>
                                             <span className={`${textColor} font-medium`}>
-                                                {(video.channelName || video.uploadedBy || "C").charAt(0).toUpperCase()}
+                                                {(channelName || "C").charAt(0).toUpperCase()}
                                             </span>
                                         </div>
                                         <div>
-                                            <h3 className={`${textColor} font-medium`}>
-                                                {video.channelName || video.uploadedBy || "Unknown Channel"}
+                                            <h3>
+                                                {channelName}
                                             </h3>
                                             <p className={`${mutedText} text-sm`}>
-                                                {formatViews(video.subscribers || 0)} subscribers
+                                                {formatViews(subscriberCount)} subscribers
                                             </p>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                if (!isLoggedIn) {
-                                                    requireLogin();
-                                                    return;
-                                                }
-                                                setIsSubscribed(!isSubscribed);
-                                            }}
-                                            className={`px-4 py-2 rounded-full font-medium text-sm transition ${subscribeBg} ${subscribeText} ${subscribeHover}`}
+                                            onClick={handleSubscribe}
+                                            disabled={!channelId}
+                                            className={`px-4 py-2 rounded-full font-medium text-sm transition ${!channelId ? "opacity-50 cursor-not-allowed" : ""
+                                                } ${subscribeBg} ${subscribeText} ${subscribeHover}`}
                                         >
-                                            {isSubscribed ? "Subscribed" : "Subscribe"}
+                                            {!channelId ? "No Channel" : isSubscribed ? "Subscribed" : "Subscribe"}
                                         </button>
                                     </div>
 
@@ -977,18 +1070,17 @@ const PlayerPage = () => {
                 </div>
             )}
 
-            {/* Add custom CSS for animations */}
             <style>{`
-                @keyframes fadeInOut {
-                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-                    20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-                    80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-                    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-                }
-                .animate-fade-in-out {
-                    animation: fadeInOut 1s ease-in-out forwards;
-                }
-            `}</style>
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+          20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+        .animate-fade-in-out {
+          animation: fadeInOut 1s ease-in-out forwards;
+        }
+      `}</style>
         </div>
     );
 };
