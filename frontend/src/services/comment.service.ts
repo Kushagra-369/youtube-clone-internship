@@ -83,12 +83,16 @@ export const translateComment = async (
     text: string,
     target: string
 ): Promise<TranslateResponse> => {
-    const response = await axios.post<TranslateResponse>(
+
+    const response = await axios.post(
         `${API_URL}/translate`,
         {
             text,
             target,
         }
     );
+
+    console.log("Axios Response:", response.data);
+
     return response.data;
 };

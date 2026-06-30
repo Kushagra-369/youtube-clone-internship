@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Comment from "../models/comment_model";
 import User from "../models/user_model";
+import { translate } from "google-translate-api-x";
 
 // Create Comment
 export const createComment = async (
@@ -251,41 +252,35 @@ export const dislikeComment = async (
   }
 };
 
-// Translate Comment
+
 export const translateComment = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
+
     const { text, target } = req.body;
 
-    if (!text || !target) {
-      res.status(400).json({
-        success: false,
-        message: "Text and target language are required",
-      });
-      return;
-    }
-
-    const response = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
-        text
-      )}&langpair=hi|${target}`
-    );
-
-    const data = await response.json();
-
-    res.status(200).json({
-      success: true,
-      translatedText:
-        data.responseData?.translatedText ||
-        "Translation not available",
+    const result = await translate(text, {
+      to: target,
     });
+
+    const translated =
+      result as { text: string };
+
+    res.json({
+      success: true,
+      translatedText: translated.text,
+    });
+
   } catch (error) {
-    console.error("Translation Error:", error);
+
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: "Translation failed",
     });
+
   }
 };

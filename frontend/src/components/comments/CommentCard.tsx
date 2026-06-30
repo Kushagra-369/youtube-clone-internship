@@ -113,8 +113,18 @@ const CommentCard = ({
     const handleTranslate = async (): Promise<void> => {
         try {
             setIsTranslating(true);
-            const response = await translateComment(comment.text, targetLanguage);
-            setTranslatedText(response.translatedText);
+
+            const response = await translateComment(
+                comment.text,
+                targetLanguage
+            );
+
+            console.log(response);
+
+            setTranslatedText(
+                response.translatedText || "Translation unavailable"
+            );
+
         } catch (error) {
             console.error("Translation Error:", error);
         } finally {
@@ -219,13 +229,13 @@ const CommentCard = ({
                             className={`${selectBg} ${selectText} text-xs px-2 py-1 rounded border ${selectBorder} ${selectFocus} focus:outline-none cursor-pointer`}
                         >
                             <option value="en">English</option>
-                            <option value="hi">हिंदी</option>
-                            <option value="fr">Français</option>
-                            <option value="de">Deutsch</option>
-                            <option value="es">Español</option>
-                            <option value="ar">العربية</option>
-                            <option value="zh">中文</option>
-                            <option value="ja">日本語</option>
+                            <option value="hi">Hindi</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="es">Spanish</option>
+                            <option value="ar">Arabic</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ja">Japanese</option>
                         </select>
 
                         <button
