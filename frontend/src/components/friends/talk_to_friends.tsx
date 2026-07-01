@@ -181,6 +181,31 @@ export default function TalkToFriends() {
     };
   }, [currentUser]);
 
+  // ---- FIX: Ensure local video is displayed when call UI appears ----
+  useEffect(() => {
+    if (callState.isInCall && localStreamRef.current && localVideoRef.current) {
+      if (localVideoRef.current.srcObject !== localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+    }
+  }, [callState.isInCall, localStreamRef.current]);
+
+  // ---- FIX: Ensure microphone audio track is enabled when call starts ----
+  useEffect(() => {
+    if (callState.isInCall && localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        if (!audioTrack.enabled) {
+          audioTrack.enabled = true;
+          setCallState(prev => ({ ...prev, isMuted: false }));
+          console.log("✅ Audio track enabled on call start");
+        }
+      } else {
+        console.warn("⚠️ No audio track found in local stream");
+      }
+    }
+  }, [callState.isInCall]);
+
   const fetchUsers = async () => {
     try {
       const res = await axios.get(`${API_URL}/users`);
@@ -287,10 +312,10 @@ export default function TalkToFriends() {
         audio: true,
         video: video
           ? {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: "user",
-          }
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: "user",
+            }
           : false,
       });
 
@@ -300,9 +325,6 @@ export default function TalkToFriends() {
         cameraStreamRef.current = stream;
       }
 
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
       return stream;
     } catch (error: any) {
       console.error(error);
@@ -466,6 +488,7 @@ export default function TalkToFriends() {
       if (track.kind === "video") {
         videoSenderRef.current = sender;
       }
+      console.log(`Added ${track.kind} track to peer connection`);
     });
 
     pc.ontrack = (event) => {
@@ -952,10 +975,11 @@ export default function TalkToFriends() {
               {/* Mute */}
               <button
                 onClick={toggleMute}
-                className={`p-4 rounded-full transition-all ${callState.isMuted
+                className={`p-4 rounded-full transition-all ${
+                  callState.isMuted
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-gray-700 hover:bg-gray-600"
-                  }`}
+                }`}
                 title="Mute"
               >
                 {callState.isMuted ? "🔇" : "🎤"}
@@ -964,10 +988,11 @@ export default function TalkToFriends() {
               {/* Camera */}
               <button
                 onClick={toggleCamera}
-                className={`p-4 rounded-full transition-all ${!callState.isCameraOn
+                className={`p-4 rounded-full transition-all ${
+                  !callState.isCameraOn
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-gray-700 hover:bg-gray-600"
-                  }`}
+                }`}
                 title="Camera"
               >
                 {callState.isCameraOn ? "📷" : "🚫"}
@@ -976,10 +1001,11 @@ export default function TalkToFriends() {
               {/* Screen Share */}
               <button
                 onClick={toggleScreenShare}
-                className={`p-4 rounded-full transition-all ${callState.isScreenSharing
+                className={`p-4 rounded-full transition-all ${
+                  callState.isScreenSharing
                     ? "bg-blue-600 hover:bg-blue-700"
                     : "bg-gray-700 hover:bg-gray-600"
-                  }`}
+                }`}
                 title="Share Screen"
               >
                 🖥️
@@ -988,10 +1014,11 @@ export default function TalkToFriends() {
               {/* Record */}
               <button
                 onClick={toggleRecording}
-                className={`p-4 rounded-full transition-all ${callState.isRecording
+                className={`p-4 rounded-full transition-all ${
+                  callState.isRecording
                     ? "bg-red-600 animate-pulse hover:bg-red-700"
                     : "bg-gray-700 hover:bg-gray-600"
-                  }`}
+                }`}
                 title="Record"
               >
                 ⏺️
@@ -1022,8 +1049,9 @@ export default function TalkToFriends() {
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div
-                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-900 ${user.isOnline ? "bg-green-500" : "bg-gray-500"
-                      }`}
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-900 ${
+                      user.isOnline ? "bg-green-500" : "bg-gray-500"
+                    }`}
                   />
                 </div>
                 <div>
@@ -1039,20 +1067,22 @@ export default function TalkToFriends() {
                 <button
                   onClick={() => startCall(user._id, "voice")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
+                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${
+                    user.isOnline && !callState.isInCall && !callState.isCalling
                       ? "bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
                       : "bg-gray-700 cursor-not-allowed opacity-50"
-                    }`}
+                  }`}
                 >
                   📞 Voice
                 </button>
                 <button
                   onClick={() => startCall(user._id, "video")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
+                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${
+                    user.isOnline && !callState.isInCall && !callState.isCalling
                       ? "bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
                       : "bg-gray-700 cursor-not-allowed opacity-50"
-                    }`}
+                  }`}
                 >
                   📹 Video
                 </button>
