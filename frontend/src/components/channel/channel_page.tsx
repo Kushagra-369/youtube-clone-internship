@@ -7,6 +7,7 @@ import { getVideos, incrementViews } from "../../services/video.service";
 import { uploadVideoFile, uploadImageFile } from "../../services/upload.service";
 import { getThemeByLocationAndTime } from "../utils/theme";
 import axios from "axios";
+import { API_URL } from "../../config/api";
 
 export interface User {
     _id: string;
@@ -196,7 +197,7 @@ const ChannelPage = () => {
                 alert('Please select a valid video file');
                 return;
             }
-            
+
             // Validate file size (max 500MB)
             if (file.size > 500 * 1024 * 1024) {
                 alert('Video file size should be less than 500MB');
@@ -204,7 +205,7 @@ const ChannelPage = () => {
             }
 
             setUploadData({ ...uploadData, videoFile: file });
-            
+
             // Create preview
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -221,7 +222,7 @@ const ChannelPage = () => {
                 alert('Please select a valid image file for thumbnail');
                 return;
             }
-            
+
             // Validate file size (max 5MB)
             if (file.size > 5 * 1024 * 1024) {
                 alert('Thumbnail file size should be less than 5MB');
@@ -229,7 +230,7 @@ const ChannelPage = () => {
             }
 
             setUploadData({ ...uploadData, thumbnailFile: file });
-            
+
             // Create preview
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -305,7 +306,7 @@ const ChannelPage = () => {
 
             // Save video in MongoDB
             const response = await axios.post(
-                "http://localhost:1928/create_video",
+                `${API_URL}/create_video`,
                 {
                     title: uploadData.title,
                     description: uploadData.description,
@@ -789,11 +790,10 @@ const ChannelPage = () => {
                                     Video File *
                                 </label>
                                 <div
-                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                                        isDraggingVideo ? `${dragBorder} ${dragBg}` : 
-                                        uploadData.videoFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
-                                        `${inputBorder}`
-                                    }`}
+                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDraggingVideo ? `${dragBorder} ${dragBg}` :
+                                            uploadData.videoFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                                                `${inputBorder}`
+                                        }`}
                                     onDragEnter={(e) => {
                                         e.preventDefault();
                                         setIsDraggingVideo(true);
@@ -820,7 +820,7 @@ const ChannelPage = () => {
                                         }}
                                         disabled={isLoading}
                                     />
-                                    
+
                                     {uploadData.videoFile ? (
                                         <div className="space-y-2">
                                             <div className="text-4xl">✅</div>
@@ -831,8 +831,8 @@ const ChannelPage = () => {
                                                 {(uploadData.videoFile.size / (1024 * 1024)).toFixed(2)} MB
                                             </p>
                                             {videoPreview && (
-                                                <video 
-                                                    src={videoPreview} 
+                                                <video
+                                                    src={videoPreview}
                                                     className="max-h-32 mx-auto rounded-lg mt-2"
                                                     controls
                                                 />
@@ -868,11 +868,10 @@ const ChannelPage = () => {
                                     Thumbnail *
                                 </label>
                                 <div
-                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                                        isDraggingThumbnail ? `${dragBorder} ${dragBg}` :
-                                        uploadData.thumbnailFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
-                                        `${inputBorder}`
-                                    }`}
+                                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDraggingThumbnail ? `${dragBorder} ${dragBg}` :
+                                            uploadData.thumbnailFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                                                `${inputBorder}`
+                                        }`}
                                     onDragEnter={(e) => {
                                         e.preventDefault();
                                         setIsDraggingThumbnail(true);
@@ -899,7 +898,7 @@ const ChannelPage = () => {
                                         }}
                                         disabled={isLoading}
                                     />
-                                    
+
                                     {uploadData.thumbnailFile ? (
                                         <div className="space-y-2">
                                             <div className="text-4xl">✅</div>
@@ -910,8 +909,8 @@ const ChannelPage = () => {
                                                 {(uploadData.thumbnailFile.size / (1024 * 1024)).toFixed(2)} MB
                                             </p>
                                             {thumbnailPreview && (
-                                                <img 
-                                                    src={thumbnailPreview} 
+                                                <img
+                                                    src={thumbnailPreview}
                                                     alt="Thumbnail preview"
                                                     className="max-h-32 mx-auto rounded-lg mt-2 object-cover"
                                                 />
