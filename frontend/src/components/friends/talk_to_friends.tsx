@@ -125,7 +125,7 @@ export default function TalkToFriends() {
       setIsCaller(false);
     });
 
-    socket.on("call-accepted", (data: { from: string }) => {
+    socket.on("call-accepted", () => {
       setCallState(prev => ({
         ...prev,
         isInCall: true,

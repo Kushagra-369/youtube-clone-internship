@@ -57,7 +57,7 @@ const PlayerPage = () => {
     const [channelId, setChannelId] = useState<string | null>(null);
     const [channelName, setChannelName] = useState<string>("");
     const [subscriberCount, setSubscriberCount] = useState(0);
-    const [channelFetchError, setChannelFetchError] = useState(false);
+    const [, setChannelFetchError] = useState(false);
 
     const navigate = useNavigate();
     const videoRef = useRef<HTMLVideoElement>(null);
