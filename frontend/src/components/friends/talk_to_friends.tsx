@@ -62,7 +62,7 @@ export default function TalkToFriends() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const isReconnectingRef = useRef<boolean>(false);
   const videoSenderRef = useRef<RTCRtpSender | null>(null);
-  const blackTrackRef = useRef<MediaStreamTrack | null>(null); // black video track
+  const blackTrackRef = useRef<MediaStreamTrack | null>(null);
 
   // Get current user from localStorage
   useEffect(() => {
@@ -198,7 +198,6 @@ export default function TalkToFriends() {
   // ---- Helper to create a black video track ----
   const createBlackTrack = (): MediaStreamTrack => {
     if (blackTrackRef.current) {
-      // If already created, just return a clone (so we can reuse)
       return blackTrackRef.current.clone();
     }
     const canvas = document.createElement("canvas");
@@ -299,8 +298,6 @@ export default function TalkToFriends() {
 
       if (video) {
         cameraStreamRef.current = stream;
-      } else {
-        // Voice call: no video track, we'll add black track later if needed
       }
 
       if (localVideoRef.current) {
@@ -331,10 +328,8 @@ export default function TalkToFriends() {
     const pc = peerConnectionRef.current;
     if (!pc) return;
 
-    // Find video sender
     let sender = pc.getSenders().find(s => s.track?.kind === "video");
     if (!sender) {
-      // If no sender exists, create one
       if (newTrack && localStreamRef.current) {
         sender = pc.addTrack(newTrack, localStreamRef.current);
         videoSenderRef.current = sender;
@@ -342,7 +337,6 @@ export default function TalkToFriends() {
       return;
     }
 
-    // If newTrack is null, we will disable the current track instead of removing
     if (!newTrack) {
       if (sender.track) {
         sender.track.enabled = false;
@@ -351,23 +345,18 @@ export default function TalkToFriends() {
       return;
     }
 
-    // Replace the track
     try {
       await sender.replaceTrack(newTrack);
       videoSenderRef.current = sender;
-      // Update localStream
       if (localStreamRef.current) {
-        // Remove old video track if exists
         const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
         if (oldVideoTrack && oldVideoTrack !== newTrack) {
           localStreamRef.current.removeTrack(oldVideoTrack);
         }
-        // Add new track if not already present
         if (!localStreamRef.current.getVideoTracks().includes(newTrack)) {
           localStreamRef.current.addTrack(newTrack);
         }
       }
-      // Update local preview
       if (localVideoRef.current && localStreamRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
@@ -472,7 +461,6 @@ export default function TalkToFriends() {
     });
     peerConnectionRef.current = pc;
 
-    // Add all tracks from local stream
     stream.getTracks().forEach(track => {
       const sender = pc.addTrack(track, stream);
       if (track.kind === "video") {
@@ -480,7 +468,6 @@ export default function TalkToFriends() {
       }
     });
 
-    // Handle remote stream
     pc.ontrack = (event) => {
       console.log("Remote track received:", event.track.kind);
 
@@ -495,7 +482,6 @@ export default function TalkToFriends() {
       }
     };
 
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && !isCallEndedRef.current) {
         socket.emit("ice-candidate", {
@@ -604,6 +590,19 @@ export default function TalkToFriends() {
 
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+
+      // ----- FIX: If we are still in dialing state, mark call as connected -----
+      setCallState(prev => {
+        if (prev.callStatus === "dialing") {
+          return {
+            ...prev,
+            isCalling: false,
+            isInCall: true,
+            callStatus: "connected",
+          };
+        }
+        return prev;
+      });
     } catch (error) {
       console.error("Error handling answer:", error);
     }
@@ -635,7 +634,6 @@ export default function TalkToFriends() {
 
   // ---- Toggle Camera ----
   const toggleCamera = async () => {
-    // Screen share chal raha hai toh camera toggle mat karo
     if (callState.isScreenSharing) {
       alert("Camera toggle is disabled during screen sharing.");
       return;
@@ -643,21 +641,16 @@ export default function TalkToFriends() {
 
     try {
       if (callState.isCameraOn) {
-        // ---- Camera OFF ----
-        // 1. Stop actual camera track
         if (cameraStreamRef.current) {
           cameraStreamRef.current.getTracks().forEach(track => track.stop());
           cameraStreamRef.current = null;
         }
 
-        // 2. Replace with black track
         const blackTrack = createBlackTrack();
         await replaceVideoTrack(blackTrack);
 
         setCallState(prev => ({ ...prev, isCameraOn: false }));
       } else {
-        // ---- Camera ON ----
-        // 1. Get new camera stream
         const newStream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 1280 },
@@ -672,7 +665,6 @@ export default function TalkToFriends() {
         }
         cameraTrack.enabled = true;
 
-        // 2. Replace black track with camera track
         await replaceVideoTrack(cameraTrack);
 
         setCallState(prev => ({ ...prev, isCameraOn: true }));
@@ -687,19 +679,16 @@ export default function TalkToFriends() {
   const toggleScreenShare = async () => {
     try {
       if (callState.isScreenSharing) {
-        // Stop screen sharing: restore camera or black track
         if (callState.isCameraOn && cameraStreamRef.current) {
           const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
           if (cameraTrack) {
             await replaceVideoTrack(cameraTrack);
           }
         } else {
-          // Camera is off, use black track
           const blackTrack = createBlackTrack();
           await replaceVideoTrack(blackTrack);
         }
 
-        // Clean up screen stream
         if (screenStreamRef.current) {
           screenStreamRef.current.getTracks().forEach(track => track.stop());
           screenStreamRef.current = null;
@@ -709,7 +698,6 @@ export default function TalkToFriends() {
         return;
       }
 
-      // Start screen sharing
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
@@ -718,12 +706,9 @@ export default function TalkToFriends() {
       screenStreamRef.current = screenStream;
       const screenTrack = screenStream.getVideoTracks()[0];
 
-      // Replace video track with screen track
       await replaceVideoTrack(screenTrack);
 
-      // Handle screen share end (user clicks "Stop sharing" in browser)
       screenTrack.onended = () => {
-        // Restore camera or black
         if (callState.isCameraOn && cameraStreamRef.current) {
           const cameraTrack = cameraStreamRef.current.getVideoTracks()[0];
           if (cameraTrack) {
@@ -760,42 +745,34 @@ export default function TalkToFriends() {
     }
 
     try {
-      // Create a combined stream for recording
       const combinedStream = new MediaStream();
 
-      // Add local audio
       if (localStreamRef.current) {
         localStreamRef.current.getAudioTracks().forEach(track => {
           combinedStream.addTrack(track.clone());
         });
       }
 
-      // Add remote audio
       if (remoteStreamRef.current) {
         remoteStreamRef.current.getAudioTracks().forEach(track => {
           combinedStream.addTrack(track.clone());
         });
       }
 
-      // Add video from local stream (could be camera, screen, or black)
       if (localStreamRef.current) {
         const videoTrack = localStreamRef.current.getVideoTracks()[0];
         if (videoTrack) {
-          // Clone the track to avoid interfering with the call
           const clonedVideo = videoTrack.clone();
-          // Ensure it's enabled
           clonedVideo.enabled = true;
           combinedStream.addTrack(clonedVideo);
         }
       }
 
-      // If no video track at all, add a black track
       if (combinedStream.getVideoTracks().length === 0) {
         const blackTrack = createBlackTrack();
         combinedStream.addTrack(blackTrack);
       }
 
-      // Check if we have any tracks
       if (combinedStream.getTracks().length === 0) {
         alert("No media streams available to record");
         return;
@@ -832,11 +809,10 @@ export default function TalkToFriends() {
           URL.revokeObjectURL(url);
         }, 1000);
 
-        // Clean up combined stream
         combinedStream.getTracks().forEach(track => track.stop());
       };
 
-      recorder.start(1000); // 1-second chunks
+      recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setCallState(prev => ({ ...prev, isRecording: true }));
 
