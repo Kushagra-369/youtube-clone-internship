@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 import router from "./routes/routes";
 import { createServer } from "http";
 import { Server } from "socket.io";
-
+ 
 dotenv.config();
 
 const app = express();

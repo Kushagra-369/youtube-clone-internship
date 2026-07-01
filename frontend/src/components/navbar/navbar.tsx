@@ -72,20 +72,43 @@ const Navbar = () => {
 
             const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana"];
             if (southStates.includes(mongoUser.state)) {
+
                 await sendEmailOTP(mongoUser.email);
+
                 setPendingUser(userData);
+
                 setShowOtpModal(true);
+
                 return;
             }
+
             if (!southStates.includes(mongoUser.state)) {
+
+                // Phone not added
                 if (!mongoUser.phone) {
+
                     setPendingUser(userData);
+
                     setShowPhoneModal(true);
+
+                    return;
+                }
+
+                // Phone added but OTP not verified
+                if (!mongoUser.isOtpVerified) {
+
+                    await sendPhoneOTP(mongoUser.phone);
+
+                    setPendingUser(userData);
+
+                    setShowOtpModal(true);
+
                     return;
                 }
             }
 
             localStorage.setItem("user", JSON.stringify(userData));
+
             setUser(userData);
             console.log("Logged In User:", userData);
         } catch (error) {
@@ -94,12 +117,29 @@ const Navbar = () => {
     };
 
     const handleSavePhone = async () => {
-        await updatePhoneNumber(pendingUser._id, phone);
-        const updatedUser = { ...pendingUser, phone };
-        await sendPhoneOTP(phone);
-        setPendingUser(updatedUser);
-        setShowPhoneModal(false);
-        setShowOtpModal(true);
+        if (!/^\d{10}$/.test(phone)) {
+            alert("Enter a valid 10-digit phone number");
+            return;
+        }
+
+        try {
+            await updatePhoneNumber(pendingUser._id, phone);
+
+            const updatedUser = {
+                ...pendingUser,
+                phone,
+            };
+
+            await sendPhoneOTP(phone);
+
+            setPendingUser(updatedUser);
+            setShowPhoneModal(false);
+            setShowOtpModal(true);
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to send OTP");
+        }
     };
 
     const theme = getThemeByLocationAndTime(user?.state || "");
@@ -144,13 +184,34 @@ const Navbar = () => {
         try {
             const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana"];
             if (southStates.includes(pendingUser.state)) {
-                await verifyEmailOTP(pendingUser.email, otp);
+
+                await verifyEmailOTP(
+                    pendingUser.email,
+                    otp
+                );
+
             } else {
-                await verifyPhoneOTP(pendingUser.phone, otp);
+
+                await verifyPhoneOTP(
+                    pendingUser.phone,
+                    otp
+                );
+
             }
+
+            // OTP verified successfully
+            pendingUser.isOtpVerified = true;
+
             localStorage.setItem("user", JSON.stringify(pendingUser));
+
             setUser(pendingUser);
+
+            setOtp("");
+
+            setPendingUser(null);
+
             setShowOtpModal(false);
+
             alert("Login Successful");
         } catch {
             alert("Invalid OTP");

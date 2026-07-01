@@ -10,11 +10,12 @@ export interface IUser extends Document {
     downloadCount: number;
     lastDownloadDate: Date;
     otp?: string;
-    otpExpiry?: Date|null;
+    otpExpiry?: Date | null;
     totalWatchTime: number;        // Track total watch time in seconds
     lastWatchDate: Date;           // Track last watch date to reset daily
     createdAt: Date;
     updatedAt: Date;
+    isOtpVerified: boolean;
 }
 
 const userSchema = new Schema<IUser>(
@@ -62,7 +63,11 @@ const userSchema = new Schema<IUser>(
         },
         otpExpiry: {
             type: Date,
-            default:null
+            default: null
+        },
+        isOtpVerified: {
+            type: Boolean,
+            default: false,
         },
         totalWatchTime: {
             type: Number,

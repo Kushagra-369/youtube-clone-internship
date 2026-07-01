@@ -2,6 +2,14 @@ import { Request, Response } from "express";
 import User from "../models/user_model";
 import { sendPlanInvoice } from "../services/email_service";
 import { sendOTP } from "../services/email_service";
+import twilio from "twilio";
+import dotenv from "dotenv";
+dotenv.config();
+
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
+);
 
 export const createUser = async (
   req: Request,
@@ -269,6 +277,7 @@ export const sendEmailOTP = async (
   res: Response
 ) => {
   try {
+
     const { email } = req.body;
 
     const otp = Math.floor(
@@ -290,6 +299,8 @@ export const sendEmailOTP = async (
     user.otpExpiry = new Date(
       Date.now() + 5 * 60 * 1000
     );
+    user.isOtpVerified = false;
+
 
     await user.save();
 
@@ -343,6 +354,8 @@ export const verifyEmailOTP = async (
   user.otp = "";
   user.otpExpiry = null;
 
+  user.isOtpVerified = true;
+
   await user.save();
 
   return res.json({
@@ -369,6 +382,7 @@ export const updatePhoneNumber = async (
     }
 
     user.phone = phone;
+    user.isOtpVerified = false;
 
     await user.save();
 
@@ -392,11 +406,10 @@ export const sendPhoneOTP = async (
   res: Response
 ) => {
   try {
+    console.log(process.env.TWILIO_ACCOUNT_SID);
+    console.log(process.env.TWILIO_AUTH_TOKEN);
+    console.log(process.env.TWILIO_VERIFY_SERVICE_SID);
     const { phone } = req.body;
-
-    const otp = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
 
     const user = await User.findOne({
       phone,
@@ -409,27 +422,31 @@ export const sendPhoneOTP = async (
       });
     }
 
-    user.otp = otp;
-    user.otpExpiry = new Date(
-      Date.now() + 5 * 60 * 1000
-    );
+    await client.verify.v2
+      .services(
+        process.env.TWILIO_VERIFY_SERVICE_SID!
+      )
+      .verifications.create({
+        to: `+91${phone}`,
+        channel: "sms",
+      });
 
-    await user.save();
-
-    console.log(
-      "📱 PHONE OTP =",
-      otp
-    );
-
-    res.json({
+    return res.json({
       success: true,
-      message: "Phone OTP sent",
+      message: "OTP sent successfully",
     });
-  } catch (error) {
-    console.error(error);
 
-    res.status(500).json({
+  } catch (error: any) {
+    console.error(
+      "Twilio Send OTP Error:",
+      error
+    );
+
+    return res.status(500).json({
       success: false,
+      message:
+        error.message ||
+        "Failed to send OTP",
     });
   }
 };
@@ -445,122 +462,141 @@ export const verifyPhoneOTP = async (
       phone,
     });
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const verification =
+      await client.verify.v2
+        .services(
+          process.env.TWILIO_VERIFY_SERVICE_SID!
+        )
+        .verificationChecks.create({
+          to: `+91${phone}`,
+          code: otp,
+        });
+
     if (
-      !user ||
-      user.otp !== otp ||
-      !user.otpExpiry ||
-      user.otpExpiry < new Date()
+      verification.status !==
+      "approved"
     ) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
       });
     }
-
-    user.otp = "";
-    user.otpExpiry = null;
-
+    user.isOtpVerified = true;
     await user.save();
 
-    res.json({
+
+    return res.json({
       success: true,
       message: "OTP verified",
       data: user,
     });
-  } catch (error) {
-    console.error(error);
 
+  } catch (error: any) {
+    console.error(
+      "Twilio Verify Error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error.message ||
+        "OTP verification failed",
+    });
+  }
+};
+// Update user's watch time
+export const updateWatchTime = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { watchTime } = req.body;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    user.totalWatchTime = watchTime || 0;
+    user.lastWatchDate = new Date();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Watch time updated successfully",
+      data: {
+        totalWatchTime: user.totalWatchTime,
+        lastWatchDate: user.lastWatchDate,
+      },
+    });
+  } catch (error) {
+    console.error("Update Watch Time Error:", error);
     res.status(500).json({
       success: false,
+      message: "Internal Server Error",
     });
   }
 };
 
-// Update user's watch time
-export const updateWatchTime = async (
-    req: Request,
-    res: Response
-): Promise<void> => {
-    try {
-        const { userId } = req.params;
-        const { watchTime } = req.body;
-
-        if (!userId) {
-            res.status(400).json({
-                success: false,
-                message: "User ID is required",
-            });
-            return;
-        }
-
-        const user = await User.findById(userId);
-        if (!user) {
-            res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-            return;
-        }
-
-        user.totalWatchTime = watchTime || 0;
-        user.lastWatchDate = new Date();
-        await user.save();
-
-        res.status(200).json({
-            success: true,
-            message: "Watch time updated successfully",
-            data: {
-                totalWatchTime: user.totalWatchTime,
-                lastWatchDate: user.lastWatchDate,
-            },
-        });
-    } catch (error) {
-        console.error("Update Watch Time Error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-        });
-    }
-};
-
 // Get user's watch time
 export const getUserWatchTime = async (
-    req: Request,
-    res: Response
+  req: Request,
+  res: Response
 ): Promise<void> => {
-    try {
-        const { userId } = req.params;
+  try {
+    const { userId } = req.params;
 
-        if (!userId) {
-            res.status(400).json({
-                success: false,
-                message: "User ID is required",
-            });
-            return;
-        }
-
-        const user = await User.findById(userId);
-        if (!user) {
-            res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-            return;
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                totalWatchTime: user.totalWatchTime || 0,
-                lastWatchDate: user.lastWatchDate,
-                watchPlan: user.watchPlan,
-            },
-        });
-    } catch (error) {
-        console.error("Get Watch Time Error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-        });
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+      return;
     }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalWatchTime: user.totalWatchTime || 0,
+        lastWatchDate: user.lastWatchDate,
+        watchPlan: user.watchPlan,
+      },
+    });
+  } catch (error) {
+    console.error("Get Watch Time Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
 };
