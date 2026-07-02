@@ -1,5 +1,5 @@
 // pages/talk_to_friends.tsx
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../../config/api";
 import { socket } from "../../socket";
@@ -62,19 +62,38 @@ export default function TalkToFriends() {
   const videoSenderRef = useRef<RTCRtpSender | null>(null);
   const blackTrackRef = useRef<MediaStreamTrack | null>(null);
 
-  // ============================================================
-  // NEW: Recording Refs (professional canvas-based recording)
-  // ============================================================
+  // Recording refs
   const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const recordingStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingAnimationRef = useRef<number | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
-  const recordingCanvasReadyRef = useRef<boolean>(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const combinedRecorderStreamRef = useRef<MediaStream | null>(null);
+
+  // ---- Ref for latest call state (used in recording loop) ----
+  const callStateRef = useRef<CallState>(callState);
+  const callerNameRef = useRef<string>(callerName);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
+  useEffect(() => {
+    callerNameRef.current = callerName;
+  }, [callerName]);
+
+  // ---- Keep refs for video elements ----
+  const localVideoRefForRecording = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRefForRecording = useRef<HTMLVideoElement | null>(null);
+
+  // Update recording refs when video refs change
+  useEffect(() => {
+    localVideoRefForRecording.current = localVideoRef.current;
+    remoteVideoRefForRecording.current = remoteVideoRef.current;
+  }, [localVideoRef.current, remoteVideoRef.current]);
 
   // Get current user from localStorage
   useEffect(() => {
@@ -218,19 +237,6 @@ export default function TalkToFriends() {
     }
   }, [callState.isInCall]);
 
-  // ============================================================
-  // NEW: Effect to restart recording canvas when streams change
-  // ============================================================
-  useEffect(() => {
-    if (callState.isRecording && recordingCanvasReadyRef.current) {
-      // When streams change, the canvas render loop will pick up the changes
-      // via the refs. We just need to make sure the canvas is rendering.
-      if (!recordingAnimationRef.current) {
-        startRecordingRenderLoop();
-      }
-    }
-  }, [callState.isRecording, remoteStreamRef.current, localStreamRef.current, callState.isScreenSharing]);
-
   const fetchUsers = async () => {
     try {
       const res = await axios.get(`${API_URL}/users`);
@@ -265,26 +271,11 @@ export default function TalkToFriends() {
   };
 
   // ============================================================
-  // NEW: Recording helper functions
+  // RECORDING – FIXED with live state via refs
   // ============================================================
 
   /**
-   * Setup the recording canvas with proper dimensions
-   */
-  const setupRecordingCanvas = useCallback(() => {
-    const canvas = recordingCanvasRef.current;
-    if (!canvas) return false;
-
-    // Use 16:9 aspect ratio at 1280x720 for good quality
-    canvas.width = 1280;
-    canvas.height = 720;
-    recordingCanvasReadyRef.current = true;
-
-    return true;
-  }, []);
-
-  /**
-   * Draw a video element onto canvas with proper aspect ratio
+   * Draw a video element onto canvas with proper aspect ratio (cover)
    */
   const drawVideoOnCanvas = (
     ctx: CanvasRenderingContext2D,
@@ -292,15 +283,12 @@ export default function TalkToFriends() {
     x: number,
     y: number,
     w: number,
-    h: number,
-    borderRadius: number = 0
+    h: number
   ) => {
     if (!video) {
       // Draw placeholder
       ctx.fillStyle = "#1a1a2e";
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, borderRadius);
-      ctx.fill();
+      ctx.fillRect(x, y, w, h);
       ctx.fillStyle = "#666";
       ctx.font = "48px sans-serif";
       ctx.textAlign = "center";
@@ -312,9 +300,7 @@ export default function TalkToFriends() {
     // Check if video has data
     if (video.readyState < 2 || video.videoWidth === 0) {
       ctx.fillStyle = "#1a1a2e";
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, borderRadius);
-      ctx.fill();
+      ctx.fillRect(x, y, w, h);
       ctx.fillStyle = "#666";
       ctx.font = "48px sans-serif";
       ctx.textAlign = "center";
@@ -340,25 +326,13 @@ export default function TalkToFriends() {
       sy = (video.videoHeight - sh) / 2;
     }
 
-    // Draw with rounded corners if needed
-    if (borderRadius > 0) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, borderRadius);
-      ctx.clip();
-    }
-
     ctx.drawImage(video, sx, sy, sw, sh, x, y, w, h);
-
-    if (borderRadius > 0) {
-      ctx.restore();
-    }
   };
 
   /**
-   * Render a single frame of the recording
+   * Render a single frame of the recording – uses refs for latest values
    */
-  const renderRecordingFrame = useCallback(() => {
+  const renderRecordingFrame = () => {
     const canvas = recordingCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -366,32 +340,28 @@ export default function TalkToFriends() {
 
     const { width, height } = canvas;
 
+    // Get latest state from refs
+    const state = callStateRef.current;
+    const name = callerNameRef.current;
+    const isScreenSharing = state.isScreenSharing && screenStreamRef.current;
+
     // Clear canvas with dark background
     ctx.fillStyle = "#0a0a1a";
     ctx.fillRect(0, 0, width, height);
 
-    // Determine layout based on screen sharing state
-    const isScreenSharing = callState.isScreenSharing && screenStreamRef.current;
+    // Get current video elements
+    const localVideo = localVideoRefForRecording.current;
+    const remoteVideo = remoteVideoRefForRecording.current;
 
     if (isScreenSharing) {
-      // ==========================================================
-      // LAYOUT: Screen Share Active
-      // Main: Screen Share (full), PIP1: Remote (top-right), PIP2: Local (bottom-right)
-      // ==========================================================
+      // Screen share active: main = screen (remote video shows it), PIP remote, PIP local
       const pipSize = 200;
       const pipGap = 16;
-      const borderRadius = 12;
 
-      // Draw screen share as main
-      // Use the screen stream video element - we need to render it from the stream
-      // Since screenStreamRef.current is a MediaStream, we need a video element to display it
-      // We'll use a temporary video element or render directly from the stream
-      // For simplicity, we use the remote video element which shows the screen share
-      // when screen sharing is active (the screen share is sent to the remote peer
-      // and the remote video shows it)
-      drawVideoOnCanvas(ctx, remoteVideoRef.current, 0, 0, width, height, 0);
+      // Main: remote video (which is the screen share)
+      drawVideoOnCanvas(ctx, remoteVideo, 0, 0, width, height);
 
-      // Draw "Screen Share" label on main
+      // "Screen Share" label
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.fillRect(0, 0, width, 40);
       ctx.fillStyle = "#fff";
@@ -405,50 +375,41 @@ export default function TalkToFriends() {
       const pip1Y = pipGap;
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 20;
-      drawVideoOnCanvas(ctx, remoteVideoRef.current, pip1X, pip1Y, pipSize, pipSize * 0.75, borderRadius);
+      drawVideoOnCanvas(ctx, remoteVideo, pip1X, pip1Y, pipSize, pipSize * 0.75);
       ctx.shadowBlur = 0;
 
       // Remote label
       ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.beginPath();
-      ctx.roundRect(pip1X + 8, pip1Y + pipSize * 0.75 - 30, 80, 24, 8);
-      ctx.fill();
+      ctx.fillRect(pip1X + 8, pip1Y + pipSize * 0.75 - 30, 80, 24);
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(callerName || "Remote", pip1X + 14, pip1Y + pipSize * 0.75 - 18);
+      ctx.fillText(name || "Remote", pip1X + 14, pip1Y + pipSize * 0.75 - 18);
 
       // PIP 2: Local participant (bottom-right)
       const pip2X = width - pipSize - pipGap;
       const pip2Y = height - pipSize * 0.75 - pipGap;
-      drawVideoOnCanvas(ctx, localVideoRef.current, pip2X, pip2Y, pipSize, pipSize * 0.75, borderRadius);
+      drawVideoOnCanvas(ctx, localVideo, pip2X, pip2Y, pipSize, pipSize * 0.75);
 
-      // Local label with mute indicator
+      // Local label
       ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.beginPath();
-      ctx.roundRect(pip2X + 8, pip2Y + pipSize * 0.75 - 30, 80, 24, 8);
-      ctx.fill();
+      ctx.fillRect(pip2X + 8, pip2Y + pipSize * 0.75 - 30, 100, 24);
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(
-        `You${callState.isMuted ? " 🔇" : ""}${!callState.isCameraOn ? " 📷" : ""}`,
+        `You${state.isMuted ? " 🔇" : ""}${!state.isCameraOn ? " 📷" : ""}`,
         pip2X + 14,
         pip2Y + pipSize * 0.75 - 18
       );
     } else {
-      // ==========================================================
-      // LAYOUT: Normal Call
-      // Main: Remote participant, PIP: Local participant (bottom-right)
-      // ==========================================================
+      // Normal call: remote main, local PIP bottom-right
       const pipSize = 220;
       const pipGap = 20;
-      const borderRadius = 14;
 
-      // Draw remote as main
-      drawVideoOnCanvas(ctx, remoteVideoRef.current, 0, 0, width, height, 0);
+      drawVideoOnCanvas(ctx, remoteVideo, 0, 0, width, height);
 
       // Remote name label
       ctx.fillStyle = "rgba(0,0,0,0.5)";
@@ -457,7 +418,7 @@ export default function TalkToFriends() {
       ctx.font = "16px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(`👤 ${callerName || "Remote"}`, 16, height - 25);
+      ctx.fillText(`👤 ${name || "Remote"}`, 16, height - 25);
 
       // Recording indicator (red dot)
       ctx.fillStyle = "#ff0000";
@@ -469,25 +430,23 @@ export default function TalkToFriends() {
       ctx.arc(width - 30, 30, 16, 0, Math.PI * 2);
       ctx.fill();
 
-      // PIP: Local participant (bottom-right)
+      // PIP: Local participant
       const pipX = width - pipSize - pipGap;
       const pipY = height - pipSize * 0.75 - pipGap;
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 20;
-      drawVideoOnCanvas(ctx, localVideoRef.current, pipX, pipY, pipSize, pipSize * 0.75, borderRadius);
+      drawVideoOnCanvas(ctx, localVideo, pipX, pipY, pipSize, pipSize * 0.75);
       ctx.shadowBlur = 0;
 
-      // Local label with mute/camera indicators
+      // Local label
       ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.beginPath();
-      ctx.roundRect(pipX + 10, pipY + pipSize * 0.75 - 32, 100, 26, 8);
-      ctx.fill();
+      ctx.fillRect(pipX + 10, pipY + pipSize * 0.75 - 32, 100, 26);
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(
-        `You${callState.isMuted ? " 🔇" : ""}${!callState.isCameraOn ? " 📷" : ""}`,
+        `You${state.isMuted ? " 🔇" : ""}${!state.isCameraOn ? " 📷" : ""}`,
         pipX + 18,
         pipY + pipSize * 0.75 - 19
       );
@@ -497,28 +456,26 @@ export default function TalkToFriends() {
       const mins = String(Math.floor(elapsed / 60)).padStart(2, "0");
       const secs = String(elapsed % 60).padStart(2, "0");
       ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.beginPath();
-      ctx.roundRect(width - 120, 12, 100, 32, 12);
-      ctx.fill();
+      ctx.fillRect(width - 120, 12, 100, 32);
       ctx.fillStyle = "#fff";
       ctx.font = "14px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(`⏺ ${mins}:${secs}`, width - 70, 28);
     }
-  }, [callState.isScreenSharing, callState.isMuted, callState.isCameraOn, callerName]);
+  };
 
   /**
    * Start the animation loop for canvas rendering
    */
-  const startRecordingRenderLoop = useCallback(() => {
+  const startRecordingRenderLoop = () => {
     if (recordingAnimationRef.current) {
       cancelAnimationFrame(recordingAnimationRef.current);
       recordingAnimationRef.current = null;
     }
 
     const loop = () => {
-      if (!callState.isRecording) {
+      if (!callStateRef.current.isRecording) {
         recordingAnimationRef.current = null;
         return;
       }
@@ -527,13 +484,13 @@ export default function TalkToFriends() {
     };
 
     recordingAnimationRef.current = requestAnimationFrame(loop);
-  }, [callState.isRecording, renderRecordingFrame]);
+  };
 
   /**
    * Setup audio mixing using AudioContext
    * Returns a MediaStream with mixed audio
    */
-  const setupAudioMixing = useCallback((): MediaStream | null => {
+  const setupAudioMixing = (): MediaStream | null => {
     try {
       // Clean up existing audio context
       if (audioContextRef.current) {
@@ -577,7 +534,7 @@ export default function TalkToFriends() {
       // Add remote audio
       addAudioTrack(remoteStreamRef.current, "remote");
 
-      // Resume audio context
+      // Resume audio context (required after user gesture)
       if (audioContext.state === "suspended") {
         audioContext.resume().catch(console.error);
       }
@@ -587,23 +544,25 @@ export default function TalkToFriends() {
       console.error("Failed to setup audio mixing:", error);
       return null;
     }
-  }, []);
+  };
 
   /**
    * Start the recording
    */
-  const startRecording = useCallback(async () => {
-    if (!callState.isInCall) {
+  const startRecording = async () => {
+    if (!callStateRef.current.isInCall) {
       alert("Cannot start recording: No active call");
       return;
     }
 
     try {
-      // 1. Setup canvas
-      if (!setupRecordingCanvas()) {
-        alert("Failed to setup recording canvas");
+      // 1. Setup canvas – ensure it's visible (opacity 0)
+      const canvas = recordingCanvasRef.current;
+      if (!canvas) {
+        alert("Recording canvas not available");
         return;
       }
+      // Canvas is already sized via inline attributes
 
       // 2. Setup audio mixing
       const audioStream = setupAudioMixing();
@@ -613,12 +572,6 @@ export default function TalkToFriends() {
       }
 
       // 3. Get canvas stream
-      const canvas = recordingCanvasRef.current;
-      if (!canvas) {
-        alert("Recording canvas not available");
-        return;
-      }
-
       const canvasStream = canvas.captureStream(30);
       const videoTrack = canvasStream.getVideoTracks()[0];
       if (!videoTrack) {
@@ -688,7 +641,6 @@ export default function TalkToFriends() {
       recordingStartTimeRef.current = Date.now();
 
       // 7. Start render loop
-      recordingCanvasReadyRef.current = true;
       startRecordingRenderLoop();
 
       // 8. Update state
@@ -700,12 +652,12 @@ export default function TalkToFriends() {
       alert("Failed to start recording. Please try again.");
       cleanupRecordingResources();
     }
-  }, [callState.isInCall, setupRecordingCanvas, setupAudioMixing, startRecordingRenderLoop]);
+  };
 
   /**
    * Stop the recording and save the file
    */
-  const stopRecording = useCallback(() => {
+  const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
     } else {
@@ -715,12 +667,12 @@ export default function TalkToFriends() {
 
     setCallState((prev) => ({ ...prev, isRecording: false }));
     console.log("⏹️ Recording stopped");
-  }, []);
+  };
 
   /**
    * Clean up recording resources
    */
-  const cleanupRecordingResources = useCallback(() => {
+  const cleanupRecordingResources = () => {
     // Stop animation loop
     if (recordingAnimationRef.current) {
       cancelAnimationFrame(recordingAnimationRef.current);
@@ -752,14 +704,9 @@ export default function TalkToFriends() {
       combinedRecorderStreamRef.current = null;
     }
 
-    recordingStreamRef.current = null;
-    recordingCanvasReadyRef.current = false;
-
-    // Don't clear recordedChunksRef here because they're needed for saving
-    // They will be cleared on next recording start
-
+    // Keep recordedChunksRef for saving
     console.log("🧹 Recording resources cleaned up");
-  }, []);
+  };
 
   // ---- Cleanup call ----
   const cleanupCall = () => {
@@ -767,7 +714,7 @@ export default function TalkToFriends() {
     isCallEndedRef.current = true;
 
     // Stop recording if active
-    if (callState.isRecording) {
+    if (callStateRef.current.isRecording) {
       stopRecording();
     }
 
@@ -1283,7 +1230,7 @@ export default function TalkToFriends() {
     }
   };
 
-  // ---- Toggle Recording (COMPLETELY REWRITTEN) ----
+  // ---- Toggle Recording ----
   const toggleRecording = () => {
     if (callState.isRecording) {
       stopRecording();
@@ -1451,7 +1398,7 @@ export default function TalkToFriends() {
                 🖥️
               </button>
 
-              {/* Record - UPDATED to show recording state clearly */}
+              {/* Record */}
               <button
                 onClick={toggleRecording}
                 className={`p-4 rounded-full transition-all ${
@@ -1540,13 +1487,20 @@ export default function TalkToFriends() {
       </div>
 
       {/* ============================================================
-          NEW: Hidden Recording Canvas
-          This canvas is used to composite the video layout for recording.
-          It's hidden from the UI but used by the MediaRecorder.
+          Recording Canvas – hidden but rendered for capture
           ============================================================ */}
       <canvas
         ref={recordingCanvasRef}
-        style={{ display: "none" }}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "1280px",
+          height: "720px",
+          opacity: 0,
+          pointerEvents: "none",
+          zIndex: -1,
+        }}
         width="1280"
         height="720"
       />
