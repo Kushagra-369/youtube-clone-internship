@@ -12,7 +12,7 @@ export const createUser = async (
     `${API_URL}/create-user`,
     {
       name,
-      email,state
+      email, state
     }
   );
 
@@ -23,7 +23,7 @@ export const getUserById = async (
   userId: string
 ) => {
   const response = await axios.get(
-    `${API_URL}/get_user_by_id/${userId}`
+    `${API_URL}/users/${userId}`
   );
 
   return response.data;
@@ -142,8 +142,8 @@ export const verifyPhoneOTP = async (
 };
 
 export const updateWatchTime = async (userId: string, watchTime: number) => {
-    const response = await axios.patch(`${API_URL}/users/${userId}/watch-time`, {
-        watchTime,
-    });
-    return response.data;
+  const response = await axios.patch(`${API_URL}/users/${userId}/watch-time`, {
+    watchTime,
+  });
+  return response.data;
 };
