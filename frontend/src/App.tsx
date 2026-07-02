@@ -1,9 +1,14 @@
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+
 import Navbar from "./components/navbar/navbar";
 import AppRoutes from "./routes/AppRoutes";
 import { getThemeByLocationAndTime } from "./components/utils/theme";
-import { useEffect } from "react";
 import { validateUser } from "./services/user.service";
+
 function App() {
+  const location = useLocation();
+
   const user = JSON.parse(
     localStorage.getItem("user") || "null"
   );
@@ -17,18 +22,11 @@ function App() {
       if (!localUser?.email) return;
 
       try {
-        await validateUser(
-          localUser.email
-        );
+        await validateUser(localUser.email);
       } catch (error) {
-        console.log(
-          "User deleted from DB"
-        );
+        console.log("User deleted from DB");
 
-        localStorage.removeItem(
-          "user"
-        );
-
+        localStorage.removeItem("user");
         window.location.reload();
       }
     };
@@ -36,12 +34,15 @@ function App() {
     checkUser();
   }, []);
 
-  const theme =
-    getThemeByLocationAndTime(
-      user?.state || ""
-    );
+  const theme = getThemeByLocationAndTime(
+    user?.state || ""
+  );
+
+  const hideNavbar = location.pathname.startsWith("/friends");
+
   console.log(user);
   console.log(theme);
+
   return (
     <div
       className={
@@ -50,7 +51,7 @@ function App() {
           : "bg-[#0f0f0f] text-white min-h-screen"
       }
     >
-      <Navbar />
+      {!hideNavbar && <Navbar />}
       <AppRoutes />
     </div>
   );
