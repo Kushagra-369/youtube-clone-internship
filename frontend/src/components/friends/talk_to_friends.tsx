@@ -594,8 +594,8 @@ export default function TalkToFriends() {
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
         ? "video/webm;codecs=vp8,opus"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-        ? "video/webm;codecs=vp9,opus"
-        : "video/webm";
+          ? "video/webm;codecs=vp9,opus"
+          : "video/webm";
 
       const recorder = new MediaRecorder(combinedStream, {
         mimeType,
@@ -786,10 +786,10 @@ export default function TalkToFriends() {
         audio: true,
         video: video
           ? {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: "user",
-            }
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          }
           : false,
       });
 
@@ -820,44 +820,49 @@ export default function TalkToFriends() {
   };
 
   // ---- Replace video track in peer connection and local stream ----
-  const replaceVideoTrack = async (newTrack: MediaStreamTrack | null) => {
+  const replaceVideoTrack = async (
+    newTrack: MediaStreamTrack | null
+  ) => {
     const pc = peerConnectionRef.current;
+
     if (!pc) return;
 
-    let sender = pc.getSenders().find((s) => s.track?.kind === "video");
+    let sender = pc
+      .getSenders()
+      .find((s) => s.track?.kind === "video");
+
     if (!sender) {
       if (newTrack && localStreamRef.current) {
-        sender = pc.addTrack(newTrack, localStreamRef.current);
+        sender = pc.addTrack(
+          newTrack,
+          localStreamRef.current
+        );
+
         videoSenderRef.current = sender;
       }
+
       return;
     }
 
-    if (!newTrack) {
-      if (sender.track) {
-        sender.track.enabled = false;
-      }
-      videoSenderRef.current = sender;
-      return;
-    }
+    await sender.replaceTrack(newTrack);
 
-    try {
-      await sender.replaceTrack(newTrack);
-      videoSenderRef.current = sender;
-      if (localStreamRef.current) {
-        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-        if (oldVideoTrack && oldVideoTrack !== newTrack) {
-          localStreamRef.current.removeTrack(oldVideoTrack);
-        }
-        if (!localStreamRef.current.getVideoTracks().includes(newTrack)) {
-          localStreamRef.current.addTrack(newTrack);
-        }
-      }
-      if (localVideoRef.current && localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-    } catch (error) {
-      console.error("Error replacing video track:", error);
+    videoSenderRef.current = sender;
+
+    if (
+      newTrack &&
+      localStreamRef.current &&
+      localVideoRef.current
+    ) {
+      const audioTracks =
+        localStreamRef.current.getAudioTracks();
+
+      localStreamRef.current = new MediaStream([
+        ...audioTracks,
+        newTrack,
+      ]);
+
+      localVideoRef.current.srcObject =
+        localStreamRef.current;
     }
   };
 
@@ -972,7 +977,13 @@ export default function TalkToFriends() {
         remoteStreamRef.current = new MediaStream();
       }
 
-      remoteStreamRef.current.addTrack(event.track);
+      if (
+        !remoteStreamRef.current
+          .getTracks()
+          .some((t) => t.id === event.track.id)
+      ) {
+        remoteStreamRef.current.addTrack(event.track);
+      }
 
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current;
@@ -1131,46 +1142,63 @@ export default function TalkToFriends() {
   // ---- Toggle Camera ----
   const toggleCamera = async () => {
     if (callState.isScreenSharing) {
-      alert("Camera toggle is disabled during screen sharing.");
+      alert(
+        "Camera toggle is disabled during screen sharing."
+      );
       return;
     }
 
     try {
       if (callState.isCameraOn) {
         if (cameraStreamRef.current) {
-          cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+          const track =
+            cameraStreamRef.current.getVideoTracks()[0];
+
+          if (track) {
+            track.stop();
+          }
+
           cameraStreamRef.current = null;
         }
 
         const blackTrack = createBlackTrack();
+
         await replaceVideoTrack(blackTrack);
 
-        setCallState((prev) => ({ ...prev, isCameraOn: false }));
+        setCallState((prev) => ({
+          ...prev,
+          isCameraOn: false,
+        }));
       } else {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: "user",
-          },
-        });
-        cameraStreamRef.current = newStream;
-        const cameraTrack = newStream.getVideoTracks()[0];
-        if (!cameraTrack) {
-          throw new Error("No video track found");
-        }
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: "user",
+            },
+          });
+
+        cameraStreamRef.current = stream;
+
+        const cameraTrack =
+          stream.getVideoTracks()[0];
+
+        if (!cameraTrack) return;
+
         cameraTrack.enabled = true;
 
         await replaceVideoTrack(cameraTrack);
 
-        setCallState((prev) => ({ ...prev, isCameraOn: true }));
+        setCallState((prev) => ({
+          ...prev,
+          isCameraOn: true,
+        }));
       }
-    } catch (error) {
-      console.error("Error toggling camera:", error);
-      alert("Failed to toggle camera. Please check permissions.");
+    } catch (err) {
+      console.error(err);
     }
   };
-
   // ---- Toggle Screen Share ----
   const toggleScreenShare = async () => {
     try {
@@ -1368,9 +1396,8 @@ export default function TalkToFriends() {
               {/* Mute */}
               <button
                 onClick={toggleMute}
-                className={`p-4 rounded-full transition-all ${
-                  callState.isMuted ? "bg-red-600 hover:bg-red-700" : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                className={`p-4 rounded-full transition-all ${callState.isMuted ? "bg-red-600 hover:bg-red-700" : "bg-gray-700 hover:bg-gray-600"
+                  }`}
                 title="Mute"
               >
                 {callState.isMuted ? "🔇" : "🎤"}
@@ -1379,9 +1406,8 @@ export default function TalkToFriends() {
               {/* Camera */}
               <button
                 onClick={toggleCamera}
-                className={`p-4 rounded-full transition-all ${
-                  !callState.isCameraOn ? "bg-red-600 hover:bg-red-700" : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                className={`p-4 rounded-full transition-all ${!callState.isCameraOn ? "bg-red-600 hover:bg-red-700" : "bg-gray-700 hover:bg-gray-600"
+                  }`}
                 title="Camera"
               >
                 {callState.isCameraOn ? "📷" : "🚫"}
@@ -1390,9 +1416,8 @@ export default function TalkToFriends() {
               {/* Screen Share */}
               <button
                 onClick={toggleScreenShare}
-                className={`p-4 rounded-full transition-all ${
-                  callState.isScreenSharing ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                className={`p-4 rounded-full transition-all ${callState.isScreenSharing ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-700 hover:bg-gray-600"
+                  }`}
                 title="Share Screen"
               >
                 🖥️
@@ -1401,11 +1426,10 @@ export default function TalkToFriends() {
               {/* Record */}
               <button
                 onClick={toggleRecording}
-                className={`p-4 rounded-full transition-all ${
-                  callState.isRecording
-                    ? "bg-red-600 animate-pulse hover:bg-red-700 ring-2 ring-red-400 ring-offset-2 ring-offset-black"
-                    : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                className={`p-4 rounded-full transition-all ${callState.isRecording
+                  ? "bg-red-600 animate-pulse hover:bg-red-700 ring-2 ring-red-400 ring-offset-2 ring-offset-black"
+                  : "bg-gray-700 hover:bg-gray-600"
+                  }`}
                 title={callState.isRecording ? "Stop Recording" : "Start Recording"}
               >
                 {callState.isRecording ? "⏹️" : "⏺️"}
@@ -1436,9 +1460,8 @@ export default function TalkToFriends() {
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div
-                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-900 ${
-                      user.isOnline ? "bg-green-500" : "bg-gray-500"
-                    }`}
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-900 ${user.isOnline ? "bg-green-500" : "bg-gray-500"
+                      }`}
                   />
                 </div>
                 <div>
@@ -1454,22 +1477,20 @@ export default function TalkToFriends() {
                 <button
                   onClick={() => startCall(user._id, "voice")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${
-                    user.isOnline && !callState.isInCall && !callState.isCalling
-                      ? "bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
-                      : "bg-gray-700 cursor-not-allowed opacity-50"
-                  }`}
+                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
+                    ? "bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                    : "bg-gray-700 cursor-not-allowed opacity-50"
+                    }`}
                 >
                   📞 Voice
                 </button>
                 <button
                   onClick={() => startCall(user._id, "video")}
                   disabled={!user.isOnline || callState.isInCall || callState.isCalling}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${
-                    user.isOnline && !callState.isInCall && !callState.isCalling
-                      ? "bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
-                      : "bg-gray-700 cursor-not-allowed opacity-50"
-                  }`}
+                  className={`flex-1 py-2 rounded-lg font-medium transition-all ${user.isOnline && !callState.isInCall && !callState.isCalling
+                    ? "bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+                    : "bg-gray-700 cursor-not-allowed opacity-50"
+                    }`}
                 >
                   📹 Video
                 </button>
