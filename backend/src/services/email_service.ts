@@ -12,6 +12,14 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("Transport Error:", error);
+  } else {
+    console.log("SMTP Server Ready");
+  }
+});
+
 export const sendPlanInvoice = async (
   email: string,
   name: string,
@@ -24,8 +32,10 @@ export const sendPlanInvoice = async (
     console.log(process.env.EMAIL_PASS);
     console.log(email);
 
+    console.log("Before sendMail");
+
     const info = await transporter.sendMail({
-      from: `"YouTube Clone" <${process.env.EMAIL_USER}>`,
+      from: process.env.EMAIL_USER,
       to: email,
       subject: "Watch Plan Activated",
       html: `
@@ -34,6 +44,8 @@ export const sendPlanInvoice = async (
     <p>Amount Paid: ₹${amount}</p>
   `,
     });
+
+    console.log("After sendMail");
 
     console.log("Mail sent successfully:", info.messageId);
   } catch (error) {

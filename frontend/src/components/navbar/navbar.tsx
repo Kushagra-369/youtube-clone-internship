@@ -70,7 +70,7 @@ const Navbar = () => {
                 picture: decoded.picture,
             };
 
-            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana"];
+            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana","Haryana"];
             if (southStates.includes(mongoUser.state)) {
 
                 await sendEmailOTP(mongoUser.email);
