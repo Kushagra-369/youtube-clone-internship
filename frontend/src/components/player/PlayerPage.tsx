@@ -371,8 +371,7 @@ const PlayerPage = () => {
             } else if (position === 'right') {
                 showSeekFeedbackText('👋 Goodbye!');
                 setTimeout(() => {
-                    window.open('', '_self');
-                    window.close();
+                    window.location.href = 'about:blank';
                 }, 500);
             }
             setTapCount(0);
