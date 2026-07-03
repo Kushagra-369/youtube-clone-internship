@@ -1,24 +1,33 @@
 import dotenv from "dotenv";
+import sgMail from "@sendgrid/mail";
 
 dotenv.config();
-import nodemailer from "nodemailer";
 
+// Set the API key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const fromEmail = process.env.EMAIL_FROM || "noreply@yourapp.com";
 
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("Transport Error:", error);
-  } else {
-    console.log("SMTP Server Ready");
+export const sendOTP = async (email: string, otp: string) => {
+  try {
+    const msg = {
+      to: email,
+      from: fromEmail,
+      subject: "Your Login OTP",
+      html: `
+        <h2>Login Verification</h2>
+        <p>Your OTP is:</p>
+        <h1>${otp}</h1>
+        <p>Valid for 5 minutes.</p>
+      `,
+    };
+    await sgMail.send(msg);
+    console.log(`✅ OTP sent to ${email}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send OTP to ${email}:`, error.response?.body || error.message);
+    throw error;
   }
-});
+};
 
 export const sendPlanInvoice = async (
   email: string,
@@ -27,50 +36,20 @@ export const sendPlanInvoice = async (
   amount: number
 ) => {
   try {
-    console.log("Inside sendPlanInvoice");
-    console.log(process.env.EMAIL_USER);
-    console.log(process.env.EMAIL_PASS);
-    console.log(email);
-
-    console.log("Before sendMail");
-
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const msg = {
       to: email,
+      from: fromEmail,
       subject: "Watch Plan Activated",
       html: `
-    <h2>Hello ${name}</h2>
-    <p>Your ${plan.toUpperCase()} plan has been activated successfully.</p>
-    <p>Amount Paid: ₹${amount}</p>
-  `,
-    });
-
-    console.log("After sendMail");
-
-    console.log("Mail sent successfully:", info.messageId);
-  } catch (error) {
-    console.error("sendPlanInvoice Error:", error);
+        <h2>Hello ${name}</h2>
+        <p>Your ${plan.toUpperCase()} plan has been activated successfully.</p>
+        <p>Amount Paid: ₹${amount}</p>
+      `,
+    };
+    await sgMail.send(msg);
+    console.log(`✅ Invoice sent to ${email}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send invoice to ${email}:`, error.response?.body || error.message);
     throw error;
   }
 };
-export const sendOTP = async (
-  email: string,
-  otp: string
-) => {
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your Login OTP",
-
-    html: `
-      <h2>Login Verification</h2>
-
-      <p>Your OTP is:</p>
-
-      <h1>${otp}</h1>
-
-      <p>Valid for 5 minutes.</p>
-    `,
-  });
-};
-
