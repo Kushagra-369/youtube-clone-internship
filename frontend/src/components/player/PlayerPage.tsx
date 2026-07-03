@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import CommentsPage from "../comments/CommentsPage";
-import { likeVideo, dislikeVideo } from "../../services/video.service";
+import { likeVideo, dislikeVideo, incrementView } from "../../services/video.service"; // added incrementView
 import { downloadVideo } from "../../services/download.service";
 import { useParams, Link } from "react-router-dom";
 import { getVideoById, getVideos } from "../../services/video.service";
@@ -65,20 +65,20 @@ const PlayerPage = () => {
     const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem("user") || "null"));
 
+    // ---- NEW: Ref to prevent multiple view counts ----
+    const viewCountedRef = useRef(false);
+
     // ---- Fetch latest user data (including watchPlan) on mount ----
     useEffect(() => {
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            // Fetch fresh user data from backend to get correct watchPlan
             getUserById(parsedUser._id)
                 .then((res) => {
                     if (res.success) {
                         const freshUser = res.data;
-                        // Update localStorage and state
                         localStorage.setItem("user", JSON.stringify(freshUser));
                         setUser(freshUser);
-                        // Also load watchTime
                         const savedWatchTime = localStorage.getItem(`watchTime_${freshUser._id}`);
                         if (savedWatchTime) {
                             const parsedTime = parseInt(savedWatchTime);
@@ -97,16 +97,13 @@ const PlayerPage = () => {
                             }
                         }
                     } else {
-                        // If fetch fails, fallback to stored user
                         setUser(parsedUser);
                     }
                 })
                 .catch(() => {
-                    // Fallback
                     setUser(parsedUser);
                 });
         } else {
-            // Guest – no user
             setUser(null);
         }
     }, []);
@@ -156,10 +153,10 @@ const PlayerPage = () => {
     // ---- Helper to get limit in seconds based on user plan ----
     const getLimitForPlan = (plan: string | null | undefined): number => {
         const limits: Record<string, number> = {
-            guest: 120,   // 2 min
-            free: 300,    // 5 min
-            bronze: 420,  // 7 min
-            silver: 600,  // 10 min
+            guest: 120,
+            free: 300,
+            bronze: 420,
+            silver: 600,
             gold: Infinity,
         };
         if (!plan) return limits.guest;
@@ -189,7 +186,6 @@ const PlayerPage = () => {
                     }
                     return newTime;
                 } else {
-                    // Guest: store watch time in a separate key
                     localStorage.setItem("guestWatchTime", newTime.toString());
                     const guestLimit = 120;
                     if (newTime >= guestLimit) {
@@ -232,6 +228,40 @@ const PlayerPage = () => {
             }
         }
     }, [user]);
+
+    // ---- NEW: View counting logic ----
+    useEffect(() => {
+        // Only count views for our own videos (not YouTube embeds) and after 5 seconds of watch time
+        if (
+            video &&
+            !video.videoUrl?.includes("youtube.com") &&
+            !video.videoUrl?.includes("youtu.be") &&
+            watchTime >= 5 &&
+            !viewCountedRef.current
+        ) {
+            viewCountedRef.current = true; // prevent multiple calls
+            incrementView(video._id)
+                .then((response) => {
+                    // Update the video state with the new view count from the backend
+                    if (response.data && response.data.views !== undefined) {
+                        setVideo(prev => prev ? { ...prev, views: response.data.views } : null);
+                    } else {
+                        // Fallback: increment locally
+                        setVideo(prev => prev ? { ...prev, views: (prev.views || 0) + 1 } : null);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Failed to increment view:", error);
+                    // Fallback: increment locally even if API fails
+                    setVideo(prev => prev ? { ...prev, views: (prev.views || 0) + 1 } : null);
+                });
+        }
+    }, [watchTime, video]);
+
+    // Reset viewCountedRef when video changes
+    useEffect(() => {
+        viewCountedRef.current = false;
+    }, [id]);
 
     // Video Controls (unchanged)
     const togglePlay = () => {

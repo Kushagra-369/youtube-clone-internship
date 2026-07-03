@@ -53,3 +53,14 @@ export const dislikeVideo = async (
 
   return response.data;
 };
+
+// video.service.ts
+export const incrementView = async (videoId: string) => {
+  try {
+    const response = await axios.patch(`/video_views/${videoId}`);
+    return response.data; // { success, views }
+  } catch (error) {
+    console.error("Error incrementing view:", error);
+    throw error;
+  }
+};
