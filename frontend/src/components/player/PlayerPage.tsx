@@ -371,8 +371,8 @@ const PlayerPage = () => {
             } else if (position === 'right') {
                 showSeekFeedbackText('👋 Goodbye!');
                 setTimeout(() => {
+                    window.open('', '_self');
                     window.close();
-                    window.location.href = '/';
                 }, 500);
             }
             setTapCount(0);
@@ -813,7 +813,7 @@ const PlayerPage = () => {
 
                             {/* Gesture hint – below video */}
                             <div className={`mt-2 text-xs ${mutedText} text-center bg-opacity-50 px-2 py-1 rounded`}>
-                                Tap center: Play/Pause &nbsp;|&nbsp; Double-tap left/right: +/-10s &nbsp;|&nbsp; Triple tap: Next / Close Comments / Exit
+                                Tap center: Play/Pause &nbsp;|&nbsp; Double-tap left/right: +/-10s &nbsp;|&nbsp; Triple tap: Close Comments / Next / Exit
                             </div>
 
                             {/* Video Info */}
