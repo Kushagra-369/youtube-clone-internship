@@ -70,7 +70,7 @@ const Navbar = () => {
                 picture: decoded.picture,
             };
 
-            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana","Haryana"];
+            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana",];
             if (southStates.includes(mongoUser.state)) {
 
                 await sendEmailOTP(mongoUser.email);
@@ -182,7 +182,7 @@ const Navbar = () => {
 
     const handleVerifyOTP = async () => {
         try {
-            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana", "Haryana"];
+            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana"];
             if (southStates.includes(pendingUser.state)) {
 
                 await verifyEmailOTP(
