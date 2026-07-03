@@ -6,7 +6,8 @@ dotenv.config();
 // Set the API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
-const fromEmail = process.env.EMAIL_FROM || "noreply@yourapp.com";
+// Use your verified email address directly
+const fromEmail = "knowledge4040god@gmail.com";
 
 export const sendOTP = async (email: string, otp: string) => {
   try {
