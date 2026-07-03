@@ -18,93 +18,29 @@ export const sendPlanInvoice = async (
   plan: string,
   amount: number
 ) => {
-  const invoiceId = `INV-${Date.now()}`;
-  const date = new Date().toLocaleString("en-IN");
+  try {
+    console.log("Inside sendPlanInvoice");
+    console.log(process.env.EMAIL_USER);
+    console.log(process.env.EMAIL_PASS);
+    console.log(email);
 
-  await transporter.sendMail({
-    from: `"YouTube Clone" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "🎉 Your Watch Plan Has Been Activated",
+    const info = await transporter.sendMail({
+      from: `"YouTube Clone" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Watch Plan Activated",
+      html: `
+    <h2>Hello ${name}</h2>
+    <p>Your ${plan.toUpperCase()} plan has been activated successfully.</p>
+    <p>Amount Paid: ₹${amount}</p>
+  `,
+    });
 
-    html: `
-      <div style="font-family: Arial, sans-serif; background:#f5f5f5; padding:30px;">
-        <div style="max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 0 10px rgba(0,0,0,0.15);">
-
-          <div style="background:#ff0000; color:white; padding:20px; text-align:center;">
-            <h1 style="margin:0;">YouTube Clone</h1>
-            <p style="margin:5px 0 0;">Watch Plan Invoice</p>
-          </div>
-
-          <div style="padding:25px;">
-
-            <h2>Hello ${name}, 👋</h2>
-
-            <p>
-              Thank you for upgrading your Watch Plan.
-              Your payment has been processed successfully.
-            </p>
-
-            <table style="width:100%; border-collapse:collapse; margin-top:20px;">
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;"><b>Invoice ID</b></td>
-                <td style="padding:10px; border:1px solid #ddd;">${invoiceId}</td>
-              </tr>
-
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;"><b>Plan</b></td>
-                <td style="padding:10px; border:1px solid #ddd;">${plan.toUpperCase()}</td>
-              </tr>
-
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;"><b>Amount Paid</b></td>
-                <td style="padding:10px; border:1px solid #ddd;">₹${amount}</td>
-              </tr>
-
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;"><b>Transaction Date</b></td>
-                <td style="padding:10px; border:1px solid #ddd;">${date}</td>
-              </tr>
-
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;"><b>Status</b></td>
-                <td style="padding:10px; border:1px solid #ddd; color:green;"><b>SUCCESS</b></td>
-              </tr>
-            </table>
-
-            <br/>
-
-            <h3>Your Watch Time</h3>
-
-            <ul>
-              ${plan === "bronze"
-        ? "<li>Watch videos up to <b>7 minutes</b>.</li>"
-        : plan === "silver"
-          ? "<li>Watch videos up to <b>10 minutes</b>.</li>"
-          : "<li><b>Unlimited</b> video watching.</li>"
-      }
-            </ul>
-
-            <br/>
-
-            <p>
-              Thank you for choosing <b>YouTube Clone</b>.
-            </p>
-
-            <hr/>
-
-            <p style="font-size:12px; color:#777;">
-              This is an automatically generated invoice.
-              Please do not reply to this email.
-            </p>
-
-          </div>
-
-        </div>
-      </div>
-    `,
-  });
+    console.log("Mail sent successfully:", info.messageId);
+  } catch (error) {
+    console.error("sendPlanInvoice Error:", error);
+    throw error;
+  }
 };
-
 export const sendOTP = async (
   email: string,
   otp: string
