@@ -182,7 +182,7 @@ const Navbar = () => {
 
     const handleVerifyOTP = async () => {
         try {
-            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana"];
+            const southStates = ["Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana", "Haryana"];
             if (southStates.includes(pendingUser.state)) {
 
                 await verifyEmailOTP(
