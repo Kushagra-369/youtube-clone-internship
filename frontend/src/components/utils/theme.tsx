@@ -7,7 +7,6 @@ export const getThemeByLocationAndTime = (
     "Karnataka",
     "Andhra Pradesh",
     "Telangana",
-    "Haryana"
   ];
 
   const hour = new Date().getHours();
@@ -16,7 +15,7 @@ export const getThemeByLocationAndTime = (
     southStates.includes(state);
 
   const isTimeValid =
-    hour >= 10 && hour < 18;
+    hour >= 10 && hour < 12;
 
   return isSouth && isTimeValid
     ? "light"
