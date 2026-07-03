@@ -49,12 +49,11 @@ const PlayerPage = () => {
     const [lastTapTime, setLastTapTime] = useState(0);
     const [tapPosition, setTapPosition] = useState<'center' | 'left' | 'right' | null>(null);
     const [showSeekFeedback, setShowSeekFeedback] = useState<string | null>(null);
-    // ✅ Comments ab initially open hain
     const [showComments, setShowComments] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
-    // Channel-related state (separate from video)
+    // Channel-related state
     const [channelId, setChannelId] = useState<string | null>(null);
     const [channelName, setChannelName] = useState<string>("");
     const [subscriberCount, setSubscriberCount] = useState(0);
@@ -66,29 +65,49 @@ const PlayerPage = () => {
     const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem("user") || "null"));
 
-    // Load user from localStorage on mount and when storage changes
+    // ---- Fetch latest user data (including watchPlan) on mount ----
     useEffect(() => {
-        const savedUser = localStorage.getItem("user");
-        if (savedUser) {
-            const parsedUser = JSON.parse(savedUser);
-            setUser(parsedUser);
-            const savedWatchTime = localStorage.getItem(`watchTime_${parsedUser._id}`);
-            if (savedWatchTime) {
-                const parsedTime = parseInt(savedWatchTime);
-                setWatchTime(parsedTime);
-                const limits: Record<string, number> = {
-                    guest: 120,
-                    free: 300,
-                    bronze: 420,
-                    silver: 600,
-                    gold: Infinity,
-                };
-                const currentPlan = parsedUser.watchPlan || "free";
-                const limit = limits[currentPlan];
-                if (parsedTime >= limit && limit !== Infinity) {
-                    setWatchLimitReached(true);
-                }
-            }
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            // Fetch fresh user data from backend to get correct watchPlan
+            getUserById(parsedUser._id)
+                .then((res) => {
+                    if (res.success) {
+                        const freshUser = res.data;
+                        // Update localStorage and state
+                        localStorage.setItem("user", JSON.stringify(freshUser));
+                        setUser(freshUser);
+                        // Also load watchTime
+                        const savedWatchTime = localStorage.getItem(`watchTime_${freshUser._id}`);
+                        if (savedWatchTime) {
+                            const parsedTime = parseInt(savedWatchTime);
+                            setWatchTime(parsedTime);
+                            const limits: Record<string, number> = {
+                                guest: 120,
+                                free: 300,
+                                bronze: 420,
+                                silver: 600,
+                                gold: Infinity,
+                            };
+                            const currentPlan = freshUser.watchPlan || "free";
+                            const limit = limits[currentPlan];
+                            if (parsedTime >= limit && limit !== Infinity) {
+                                setWatchLimitReached(true);
+                            }
+                        }
+                    } else {
+                        // If fetch fails, fallback to stored user
+                        setUser(parsedUser);
+                    }
+                })
+                .catch(() => {
+                    // Fallback
+                    setUser(parsedUser);
+                });
+        } else {
+            // Guest – no user
+            setUser(null);
         }
     }, []);
 
@@ -134,22 +153,27 @@ const PlayerPage = () => {
         alert("Please sign in to use this feature.");
     };
 
-    // Watch Timer Functions (unchanged)
+    // ---- Helper to get limit in seconds based on user plan ----
+    const getLimitForPlan = (plan: string | null | undefined): number => {
+        const limits: Record<string, number> = {
+            guest: 120,   // 2 min
+            free: 300,    // 5 min
+            bronze: 420,  // 7 min
+            silver: 600,  // 10 min
+            gold: Infinity,
+        };
+        if (!plan) return limits.guest;
+        return limits[plan] ?? limits.free;
+    };
+
+    // Watch Timer Functions
     const startWatchTimer = () => {
         if (watchTimeInterval.current) return;
         watchTimeInterval.current = setInterval(() => {
             setWatchTime((prev) => {
                 const newTime = prev + 1;
                 if (user) {
-                    const limits: Record<string, number> = {
-                        guest: 120,
-                        free: 300,
-                        bronze: 420,
-                        silver: 600,
-                        gold: Infinity,
-                    };
-                    const currentPlan = user.watchPlan || "free";
-                    const limit = limits[currentPlan];
+                    const limit = getLimitForPlan(user.watchPlan);
                     localStorage.setItem(`watchTime_${user._id}`, newTime.toString());
                     if (newTime >= limit && limit !== Infinity) {
                         setWatchLimitReached(true);
@@ -164,8 +188,23 @@ const PlayerPage = () => {
                         updateWatchTime(user._id, newTime).catch(console.error);
                     }
                     return newTime;
+                } else {
+                    // Guest: store watch time in a separate key
+                    localStorage.setItem("guestWatchTime", newTime.toString());
+                    const guestLimit = 120;
+                    if (newTime >= guestLimit) {
+                        setWatchLimitReached(true);
+                        if (videoRef.current) {
+                            videoRef.current.pause();
+                            setIsPlaying(false);
+                        }
+                        if (watchTimeInterval.current) {
+                            clearInterval(watchTimeInterval.current);
+                            watchTimeInterval.current = null;
+                        }
+                    }
+                    return newTime;
                 }
-                return prev;
             });
         }, 1000);
     };
@@ -179,6 +218,20 @@ const PlayerPage = () => {
             updateWatchTime(user._id, watchTime).catch(console.error);
         }
     };
+
+    // ---- Load guest watch time from localStorage ----
+    useEffect(() => {
+        if (!user) {
+            const saved = localStorage.getItem("guestWatchTime");
+            if (saved) {
+                const parsed = parseInt(saved);
+                setWatchTime(parsed);
+                if (parsed >= 120) {
+                    setWatchLimitReached(true);
+                }
+            }
+        }
+    }, [user]);
 
     // Video Controls (unchanged)
     const togglePlay = () => {
@@ -317,33 +370,20 @@ const PlayerPage = () => {
             const videoData = response.data;
             setVideo(videoData);
 
-            // Reset channel state
             setChannelId(null);
             setChannelName("");
             setSubscriberCount(0);
             setIsSubscribed(false);
             setChannelFetchError(false);
 
-            // If video has uploadedBy, fetch the associated channel
             if (videoData.uploadedBy) {
                 try {
-                    const channelResponse =
-                        await getChannelByOwner(
-                            videoData.uploadedBy
-                        );
-                    console.log(channelResponse);
-                    console.log("VIDEO:", videoData);
-                    console.log("UPLOADED BY:", videoData.uploadedBy);
-                    console.log("CHANNEL:", channelResponse.data);
+                    const channelResponse = await getChannelByOwner(videoData.uploadedBy);
                     if (!channelResponse.success) {
-                        // Channel not found – fallback to user's name or placeholder
                         setChannelFetchError(true);
                         const userResponse = await getUserById(videoData.uploadedBy);
-
                         if (userResponse.success) {
-                            setChannelName(
-                                `${userResponse.data.name}'s Channel`
-                            );
+                            setChannelName(`${userResponse.data.name}'s Channel`);
                         } else {
                             setChannelName("Unknown Channel");
                         }
@@ -354,17 +394,9 @@ const PlayerPage = () => {
                             const channel = channelResponse.data;
                             setChannelId(channel._id);
                             setChannelName(channel.channelName || "Unknown Channel");
-                            setSubscriberCount(
-                                channel.subscribedBy?.length ?? 0
-                            );
-
-                            // Check if current user is subscribed
+                            setSubscriberCount(channel.subscribedBy?.length ?? 0);
                             if (user && Array.isArray(channel.subscribedBy)) {
-                                setIsSubscribed(
-                                    channel.subscribedBy.some(
-                                        (id: string) => id === user._id
-                                    )
-                                );
+                                setIsSubscribed(channel.subscribedBy.some((id: string) => id === user._id));
                             }
                         } else {
                             setChannelFetchError(true);
@@ -377,7 +409,6 @@ const PlayerPage = () => {
                     setChannelName("Unknown Channel");
                 }
             } else {
-                // No uploadedBy field
                 setChannelFetchError(true);
                 setChannelName("Unknown Channel");
             }
@@ -410,15 +441,6 @@ const PlayerPage = () => {
         };
     }, [id]);
 
-    // Re-check subscription status when user changes (e.g., after login/logout)
-    useEffect(() => {
-        if (channelId && user) {
-            // If we have a channelId and user, we can verify subscription
-            // but we already set it from fetch; we could also refresh if needed
-            // We'll keep the current state, but you could re-fetch if needed.
-        }
-    }, [user, channelId]);
-
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.playbackRate = playbackSpeed;
@@ -444,50 +466,29 @@ const PlayerPage = () => {
             requireLogin();
             return;
         }
-
         if (!channelId) {
             alert("Channel not found. Cannot subscribe.");
             return;
         }
-
         try {
             let data;
-
             if (isSubscribed) {
-                data = await unsubscribeChannel(
-                    channelId,
-                    user._id
-                );
+                data = await unsubscribeChannel(channelId, user._id);
             } else {
-                data = await subscribeChannel(
-                    channelId,
-                    user._id
-                );
+                data = await subscribeChannel(channelId, user._id);
             }
-
             if (data.success) {
                 setIsSubscribed(data.data.subscribedBy.includes(user._id));
-                setSubscriberCount(
-                    data.data.subscribedBy.length
-                );
+                setSubscriberCount(data.data.subscribedBy.length);
             } else {
-                alert(
-                    data.message ||
-                    "Failed to update subscription"
-                );
+                alert(data.message || "Failed to update subscription");
             }
-
         } catch (error) {
-            console.error(
-                "Subscribe error:",
-                error
-            );
-
-            alert(
-                "Failed to update subscription"
-            );
+            console.error("Subscribe error:", error);
+            alert("Failed to update subscription");
         }
     };
+
     const handleQualityChange = (quality: string) => {
         setSelectedQuality(quality);
         if (quality !== "Auto" && videoRef.current) {
@@ -579,16 +580,15 @@ const PlayerPage = () => {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    // ---- Get current plan and limit for display ----
+    const getCurrentPlan = () => {
+        if (!user) return "guest";
+        return user.watchPlan || "free";
+    };
+
     const getWatchLimitDisplay = () => {
-        const limits: Record<string, number> = {
-            guest: 120,
-            free: 300,
-            bronze: 420,
-            silver: 600,
-            gold: Infinity,
-        };
-        const currentPlan = user ? (user.watchPlan || "free") : "guest";
-        const limit = limits[currentPlan];
+        const plan = getCurrentPlan();
+        const limit = getLimitForPlan(plan);
         if (limit === Infinity) {
             return "Unlimited";
         }
@@ -708,14 +708,12 @@ const PlayerPage = () => {
                                             {tapCount >= 3 && <div className="text-white text-6xl opacity-50">●●●</div>}
                                         </div>
 
-                                        {/* Watch Time Indicator */}
-                                        {user && user.watchPlan !== "gold" && (
+                                        {/* ✅ Watch Time Indicator – always shown unless Gold */}
+                                        {getCurrentPlan() !== "gold" && (
                                             <div className="absolute top-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full z-10">
                                                 ⏱ {formatWatchTime(watchTime)} / {getWatchLimitDisplay()}
                                             </div>
                                         )}
-
-                                        {/* ❌ Video ke andar se gesture hint hata diya */}
 
                                         {/* Custom Video Controls */}
                                         <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} z-10`}>
@@ -783,7 +781,7 @@ const PlayerPage = () => {
                                 )}
                             </div>
 
-                            {/* ✅ Gesture hint – ab video ke neeche, mobile-friendly */}
+                            {/* Gesture hint – below video */}
                             <div className={`mt-2 text-xs ${mutedText} text-center bg-opacity-50 px-2 py-1 rounded`}>
                                 Tap center: Play/Pause &nbsp;|&nbsp; Double-tap left/right: +/-10s &nbsp;|&nbsp; Triple tap: Next / Close Comments / Exit
                             </div>
@@ -802,9 +800,7 @@ const PlayerPage = () => {
                                             </span>
                                         </div>
                                         <div>
-                                            <h3>
-                                                {channelName}
-                                            </h3>
+                                            <h3>{channelName}</h3>
                                             <p className={`${mutedText} text-sm`}>
                                                 {formatViews(subscriberCount)} subscribers
                                             </p>
@@ -972,7 +968,7 @@ const PlayerPage = () => {
                                     </p>
                                 </div>
 
-                                {/* ✅ Comments – conditional rendering so toggle works, initially open */}
+                                {/* Comments – initially open, toggleable */}
                                 {showComments && (
                                     <div className="mt-4">
                                         {isLoggedIn ? (
@@ -1058,14 +1054,23 @@ const PlayerPage = () => {
                         <p className={`${modalMuted} mt-3`}>
                             You've watched {formatWatchTime(watchTime)} of your {getWatchLimitDisplay()} limit.
                             <br />
-                            Upgrade your plan to continue watching videos.
+                            {user ? "Upgrade your plan" : "Sign in or upgrade"} to continue watching.
                         </p>
                         <div className="mt-6 flex justify-center gap-3">
-                            <Link to="/watch-plans">
-                                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                                    Upgrade Plan
+                            {user ? (
+                                <Link to="/watch-plans">
+                                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                                        Upgrade Plan
+                                    </button>
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={() => window.location.href = '/login'}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                >
+                                    Sign In
                                 </button>
-                            </Link>
+                            )}
                         </div>
                     </div>
                 </div>
