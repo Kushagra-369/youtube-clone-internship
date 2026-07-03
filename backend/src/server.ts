@@ -6,7 +6,8 @@ import mongoose from "mongoose";
 import router from "./routes/routes";
 import { createServer } from "http";
 import { Server } from "socket.io";
- 
+import { sendOTP } from './services/email_service';
+
 dotenv.config();
 
 const app = express();
@@ -39,7 +40,7 @@ io.on("connection", (socket) => {
     currentUserId = userId;
     onlineUsers.set(userId, socket.id);
     userSockets.set(socket.id, userId);
-    
+
     // Broadcast to all other users that this user is online
     socket.broadcast.emit("user-online", userId);
     console.log(`👤 User ${userId} is now online`);
@@ -48,14 +49,14 @@ io.on("connection", (socket) => {
   // ============= CALL HANDLERS =============
 
   // Initiate a call
-  socket.on("call-user", (data: { 
-    from: string; 
-    to: string; 
-    type: "voice" | "video"; 
+  socket.on("call-user", (data: {
+    from: string;
+    to: string;
+    type: "voice" | "video";
     fromName: string;
   }) => {
     console.log(`📞 Call from ${data.from} to ${data.to} (${data.type})`);
-    
+
     const targetSocketId = onlineUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("incoming-call", {
@@ -71,10 +72,10 @@ io.on("connection", (socket) => {
   // Accept call
   socket.on("accept-call", (data: { from: string; to: string }) => {
     console.log(`✅ Call accepted from ${data.from} to ${data.to}`);
-    
+
     const callerSocketId = onlineUsers.get(data.to);
     if (callerSocketId) {
-      io.to(callerSocketId).emit("call-accepted", { 
+      io.to(callerSocketId).emit("call-accepted", {
         from: data.from,
         to: data.to,
       });
@@ -84,10 +85,10 @@ io.on("connection", (socket) => {
   // Reject call
   socket.on("reject-call", (data: { from: string; to: string }) => {
     console.log(`❌ Call rejected from ${data.from} to ${data.to}`);
-    
+
     const callerSocketId = onlineUsers.get(data.to);
     if (callerSocketId) {
-      io.to(callerSocketId).emit("call-rejected", { 
+      io.to(callerSocketId).emit("call-rejected", {
         from: data.from,
         to: data.to,
       });
@@ -97,7 +98,7 @@ io.on("connection", (socket) => {
   // End call
   socket.on("end-call", (data: { to: string }) => {
     console.log(`🔚 Call ended with ${data.to}`);
-    
+
     const targetSocketId = onlineUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("call-ended");
@@ -109,7 +110,7 @@ io.on("connection", (socket) => {
   // Send offer
   socket.on("offer", (data: { to: string; offer: any }) => {
     console.log(`📤 Offer sent to ${data.to}`);
-    
+
     const targetSocketId = onlineUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("offer", {
@@ -122,7 +123,7 @@ io.on("connection", (socket) => {
   // Send answer
   socket.on("answer", (data: { to: string; answer: any }) => {
     console.log(`📤 Answer sent to ${data.to}`);
-    
+
     const targetSocketId = onlineUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("answer", {
@@ -135,7 +136,7 @@ io.on("connection", (socket) => {
   // Send ICE candidate
   socket.on("ice-candidate", (data: { to: string; candidate: any }) => {
     console.log(`🧊 ICE candidate sent to ${data.to}`);
-    
+
     const targetSocketId = onlineUsers.get(data.to);
     if (targetSocketId) {
       io.to(targetSocketId).emit("ice-candidate", {
@@ -149,12 +150,12 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("🔴 User Disconnected:", socket.id);
-    
+
     if (currentUserId) {
       // Remove from online users
       onlineUsers.delete(currentUserId);
       userSockets.delete(socket.id);
-      
+
       // Broadcast to all other users that this user is offline
       socket.broadcast.emit("user-offline", currentUserId);
       console.log(`👤 User ${currentUserId} is now offline`);
@@ -191,6 +192,16 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/", router);
 
+
+app.get('/test-email', async (req, res) => {
+  try {
+    await sendOTP('ek369dost@example.com', '123456');
+    res.send('Email sent successfully');
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).send('Email failed: ' + error.message);
+  }
+});
 // Start server
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
