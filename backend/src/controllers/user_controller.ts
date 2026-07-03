@@ -214,10 +214,11 @@ export const upgradeWatchPlan = async (
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "User not found",
       });
+      return;
     }
 
     user.watchPlan = watchPlan;
@@ -244,7 +245,7 @@ export const upgradeWatchPlan = async (
 
     console.log("Invoice sent");
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Watch plan updated successfully",
       data: user,
@@ -253,9 +254,9 @@ export const upgradeWatchPlan = async (
   } catch (error: any) {
     console.error("Upgrade Error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
