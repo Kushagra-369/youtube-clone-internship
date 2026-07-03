@@ -820,11 +820,9 @@ export default function TalkToFriends() {
   };
 
   // ---- Replace video track in peer connection and local stream ----
-  const replaceVideoTrack = async (
-    newTrack: MediaStreamTrack | null
-  ) => {
+  // FIXED: when adding a new video sender, also update local stream and video element
+  const replaceVideoTrack = async (newTrack: MediaStreamTrack | null) => {
     const pc = peerConnectionRef.current;
-
     if (!pc) return;
 
     let sender = pc
@@ -833,36 +831,29 @@ export default function TalkToFriends() {
 
     if (!sender) {
       if (newTrack && localStreamRef.current) {
-        sender = pc.addTrack(
-          newTrack,
-          localStreamRef.current
-        );
-
+        sender = pc.addTrack(newTrack, localStreamRef.current);
         videoSenderRef.current = sender;
+      } else {
+        // No new track and no sender – nothing to do
+        return;
       }
-
-      return;
+    } else {
+      if (newTrack) {
+        await sender.replaceTrack(newTrack);
+      } else {
+        // newTrack is null – we could remove the sender, but not used currently
+        // We'll just leave as is
+      }
+      videoSenderRef.current = sender;
     }
 
-    await sender.replaceTrack(newTrack);
-
-    videoSenderRef.current = sender;
-
-    if (
-      newTrack &&
-      localStreamRef.current &&
-      localVideoRef.current
-    ) {
-      const audioTracks =
-        localStreamRef.current.getAudioTracks();
-
-      localStreamRef.current = new MediaStream([
-        ...audioTracks,
-        newTrack,
-      ]);
-
-      localVideoRef.current.srcObject =
-        localStreamRef.current;
+    // Update local stream and video element with the new video track
+    if (newTrack && localStreamRef.current && localVideoRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      // Create a new stream with audio tracks and the new video track
+      const newStream = new MediaStream([...audioTracks, newTrack]);
+      localStreamRef.current = newStream;
+      localVideoRef.current.srcObject = newStream;
     }
   };
 
