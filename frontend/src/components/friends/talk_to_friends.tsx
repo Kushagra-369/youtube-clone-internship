@@ -1498,9 +1498,7 @@ export default function TalkToFriends() {
         )}
       </div>
 
-      {/* ============================================================
-          Recording Canvas – hidden but rendered for capture
-          ============================================================ */}
+
       <canvas
         ref={recordingCanvasRef}
         style={{

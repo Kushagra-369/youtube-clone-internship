@@ -49,7 +49,8 @@ const PlayerPage = () => {
     const [lastTapTime, setLastTapTime] = useState(0);
     const [tapPosition, setTapPosition] = useState<'center' | 'left' | 'right' | null>(null);
     const [showSeekFeedback, setShowSeekFeedback] = useState<string | null>(null);
-    const [showComments, setShowComments] = useState(false);
+    // ✅ Comments ab initially open hain
+    const [showComments, setShowComments] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
@@ -714,12 +715,7 @@ const PlayerPage = () => {
                                             </div>
                                         )}
 
-                                        {/* Gesture Hints */}
-                                        <div className={`absolute bottom-20 left-1/2 transform -translate-x-1/2 text-white/50 text-xs text-center transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} pointer-events-none z-10`}>
-                                            <div className="bg-black/50 px-4 py-2 rounded-lg backdrop-blur-sm">
-                                                Tap center: Play/Pause | Double-tap left/right: +/-10s | Triple tap: Next/Close/Comments
-                                            </div>
-                                        </div>
+                                        {/* ❌ Video ke andar se gesture hint hata diya */}
 
                                         {/* Custom Video Controls */}
                                         <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'} z-10`}>
@@ -785,6 +781,11 @@ const PlayerPage = () => {
                                         </div>
                                     </>
                                 )}
+                            </div>
+
+                            {/* ✅ Gesture hint – ab video ke neeche, mobile-friendly */}
+                            <div className={`mt-2 text-xs ${mutedText} text-center bg-opacity-50 px-2 py-1 rounded`}>
+                                Tap center: Play/Pause &nbsp;|&nbsp; Double-tap left/right: +/-10s &nbsp;|&nbsp; Triple tap: Next / Close Comments / Exit
                             </div>
 
                             {/* Video Info */}
@@ -971,7 +972,7 @@ const PlayerPage = () => {
                                     </p>
                                 </div>
 
-                                {/* Comments Section */}
+                                {/* ✅ Comments – conditional rendering so toggle works, initially open */}
                                 {showComments && (
                                     <div className="mt-4">
                                         {isLoggedIn ? (
