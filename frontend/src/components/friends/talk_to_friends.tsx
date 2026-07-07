@@ -132,7 +132,14 @@ export default function TalkToFriends() {
     if (!currentUser) return;
 
     socket.emit("user-online", currentUser._id);
-
+    socket.on("online-users", (onlineIds: string[]) => {
+      setUsers((prev) =>
+        prev.map((user) => ({
+          ...user,
+          isOnline: onlineIds.includes(user._id),
+        }))
+      );
+    });
     socket.on("user-online", (userId: string) => {
       setUsers((prev) =>
         prev.map((u) =>
@@ -200,6 +207,7 @@ export default function TalkToFriends() {
     });
 
     return () => {
+      socket.off("online-users");
       socket.off("user-online");
       socket.off("user-offline");
       socket.off("incoming-call");

@@ -38,12 +38,21 @@ io.on("connection", (socket) => {
   // User goes online
   socket.on("user-online", (userId: string) => {
     currentUserId = userId;
+
     onlineUsers.set(userId, socket.id);
     userSockets.set(socket.id, userId);
 
-    // Broadcast to all other users that this user is online
-    socket.broadcast.emit("user-online", userId);
     console.log(`👤 User ${userId} is now online`);
+
+    // Tell everyone else this user came online
+    socket.broadcast.emit("user-online", userId);
+
+    // VERY IMPORTANT:
+    // Send all currently online users to the newly connected client
+    socket.emit(
+      "online-users",
+      Array.from(onlineUsers.keys())
+    );
   });
 
   // ============= CALL HANDLERS =============
