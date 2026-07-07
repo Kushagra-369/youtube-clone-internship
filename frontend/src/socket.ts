@@ -14,6 +14,12 @@ export const socket = io(API_URL, {
 // Connection event handlers
 socket.on("connect", () => {
   console.log("🟢 Socket connected:", socket.id);
+
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  if (user?._id) {
+    socket.emit("user-online", user._id);
+  }
 });
 
 socket.on("connect_error", (error) => {

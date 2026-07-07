@@ -98,10 +98,14 @@ export default function TalkToFriends() {
   // Get current user from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
+
     if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
+      const user = JSON.parse(storedUser);
+
+      setCurrentUser(user);
+
+      fetchUsers(user._id);   // <-- pass userId
     }
-    fetchUsers();
 
     const handleBeforeUnload = () => {
       if (callState.isInCall || callState.isCalling) {
@@ -110,11 +114,13 @@ export default function TalkToFriends() {
             to: callState.calleeId,
           });
         }
+
         if (callState.callerId && !isCaller) {
           socket.emit("end-call", {
             to: callState.callerId,
           });
         }
+
         cleanupCall();
       }
     };
@@ -122,7 +128,10 @@ export default function TalkToFriends() {
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener(
+        "beforeunload",
+        handleBeforeUnload
+      );
       cleanupCall();
     };
   }, []);
@@ -244,14 +253,11 @@ export default function TalkToFriends() {
     }
   }, [callState.isInCall]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (currentUserId: string) => {
     try {
       const res = await axios.get(`${API_URL}/users`);
 
-      const storedUser = localStorage.getItem("user");
-      const currentUserId = storedUser
-        ? JSON.parse(storedUser)._id
-        : null;
+
 
       const filteredUsers = res.data.data.filter(
         (u: User) => u._id !== currentUserId
@@ -259,8 +265,9 @@ export default function TalkToFriends() {
 
       setUsers(filteredUsers);
 
-      // Ask backend again who is online
-      socket.emit("user-online", currentUserId);
+      setTimeout(() => {
+        socket.emit("user-online", currentUserId);
+      }, 100);
 
     } catch (error) {
       console.error("Failed to fetch users:", error);
