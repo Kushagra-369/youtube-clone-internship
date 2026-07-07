@@ -49,7 +49,7 @@ io.on("connection", (socket) => {
 
     // VERY IMPORTANT:
     // Send all currently online users to the newly connected client
-    socket.emit(
+    io.to(socket.id).emit(
       "online-users",
       Array.from(onlineUsers.keys())
     );

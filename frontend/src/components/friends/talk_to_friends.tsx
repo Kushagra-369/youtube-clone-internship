@@ -131,7 +131,6 @@ export default function TalkToFriends() {
   useEffect(() => {
     if (!currentUser) return;
 
-    socket.emit("user-online", currentUser._id);
     socket.on("online-users", (onlineIds: string[]) => {
       setUsers((prev) =>
         prev.map((user) => ({
@@ -248,10 +247,21 @@ export default function TalkToFriends() {
   const fetchUsers = async () => {
     try {
       const res = await axios.get(`${API_URL}/users`);
+
       const storedUser = localStorage.getItem("user");
-      const currentUserId = storedUser ? JSON.parse(storedUser)._id : null;
-      const filteredUsers = res.data.data.filter((u: User) => u._id !== currentUserId);
+      const currentUserId = storedUser
+        ? JSON.parse(storedUser)._id
+        : null;
+
+      const filteredUsers = res.data.data.filter(
+        (u: User) => u._id !== currentUserId
+      );
+
       setUsers(filteredUsers);
+
+      // Ask backend again who is online
+      socket.emit("user-online", currentUserId);
+
     } catch (error) {
       console.error("Failed to fetch users:", error);
     } finally {
